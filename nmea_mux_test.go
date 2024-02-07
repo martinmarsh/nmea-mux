@@ -115,7 +115,13 @@ func TestMonitorUdp(t *testing.T) {
 			t.Errorf("Monitor got wrong message: %s", str)
 		}
 	case <-time.After(2 * time.Second):
-		t.Error("Monitor timesd out")
+		t.Error("Monitor timed out")
 	}
 
+}
+
+func TestRunDevices(t *testing.T) {
+	n := NewMux()
+	n.LoadConfig("./test_data/", "config")
+	n.Run()
 }

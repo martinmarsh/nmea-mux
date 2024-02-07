@@ -1,3 +1,10 @@
+/*
+NMEA MUX
+Copyright © 2024 Martin Marsh martin@marshtrio.com
+Licensed under the Apache License, Version 2.0 (the "License");Licensed under the Apache License, Version 2.0 (the "License");
+
+*/
+
 package nmea_mux
 
 import (
@@ -136,5 +143,23 @@ func (n *NmeaMux) Monitor(str string, print bool, udp bool) {
 	}
 	if print {
 		fmt.Println(str)
+	}
+}
+
+func (n *NmeaMux) Run() {
+	for processType, names := range n.config.TypeList {
+		fmt.Println(processType, names)
+		for _, name := range names {
+			switch processType {
+			case "serial":
+				n.serialProcess(name)
+			case "udp_client":
+				n.udpClientProcess(name)
+			case "processor":
+				n.processorProcess(name)
+			case "udp_listen":
+				n.udpListenerProcess(name)
+			}
+		}
 	}
 }
