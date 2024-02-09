@@ -26,13 +26,19 @@ type NmeaMux struct {
 	udp_monitor_active bool
 	monitor_channel    chan string
 	channels           map[string](chan string)
+	devices            map[string](device)
 }
+
+// A device is the top level item in the mux config
+// type device func(m *NmeaMux)
+type device func(n *NmeaMux, s string)
 
 func NewMux() *NmeaMux {
 	n := NmeaMux{
 		udp_monitor_active: false,
-		monitor_channel:    make(chan string, 2),
+		monitor_channel:    make(chan string, 5),
 		channels:           make(map[string](chan string)),
+		devices:            make(map[string](device)),
 		config: &configData{
 			Index:          make(map[string]([]string)),
 			TypeList:       make(map[string]([]string)),
@@ -45,14 +51,20 @@ func NewMux() *NmeaMux {
 }
 
 func (n *NmeaMux) LoadConfig(settings ...string) error {
-	configSet := []string{".", "config", "yaml"}
+	configSet := []string{".", "config", "yaml", ""}
 	copy(configSet, settings)
 
 	viper.AddConfigPath(configSet[0]) // optionally look for config in the working directory
 	viper.SetConfigName(configSet[1]) // name of config file (without extension)
 	viper.SetConfigType(configSet[2]) // REQUIRED if the config file does not have the extension in the name
+	var err error = nil
 
-	err := viper.ReadInConfig() // Find and read the config file
+	if configSet[3] == "" {
+		err = viper.ReadInConfig() // Find and read the config file
+	} else {
+		err = viper.ReadConfig(strings.NewReader(configSet[3]))
+	}
+
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			err = fmt.Errorf("config file error - not found - create a config file: %s", err)
@@ -134,6 +146,29 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 		err = fmt.Errorf("input channels and output channels must be wired together: check these channels %s", err_str)
 	}
 
+	for processType, names := range n.config.TypeList {
+		//fmt.Println(processType, names)
+		for _, name := range names {
+			switch processType {
+			case "serial":
+				n.devices[name] = (*NmeaMux).serialProcess
+			case "udp_client":
+				n.devices[name] = (*NmeaMux).udpClientProcess
+			case "nmea_processor":
+				n.devices[name] = (*NmeaMux).nmeaProcessorProcess
+			case "udp_listen":
+				n.devices[name] = (*NmeaMux).udpListenerProcess
+			case "make_sentence":
+				n.devices[name] = (*NmeaMux).makeSentenceProcess
+			default:
+				err = fmt.Errorf("unknown device found: %s", processType)
+			}
+			if err != nil {
+				break
+			}
+		}
+	}
+
 	return err
 }
 
@@ -146,20 +181,22 @@ func (n *NmeaMux) Monitor(str string, print bool, udp bool) {
 	}
 }
 
-func (n *NmeaMux) Run() {
-	for processType, names := range n.config.TypeList {
-		fmt.Println(processType, names)
-		for _, name := range names {
-			switch processType {
-			case "serial":
-				n.serialProcess(name)
-			case "udp_client":
-				n.udpClientProcess(name)
-			case "processor":
-				n.processorProcess(name)
-			case "udp_listen":
-				n.udpListenerProcess(name)
-			}
-		}
+func (n *NmeaMux) Run(settings ...bool) {
+	for name, v := range n.devices {
+		n.RunDevice(name, v)
+	}
+	if len(settings) == 0 || settings[0] {
+		go n.RunMonitor()
+	}
+}
+
+func (n *NmeaMux) RunDevice(name string, device_method device) {
+	device_method(n, name) // runs  func (n *NmeaMux) device_method (name) note unexpected parameter order go expects
+}
+
+func (n *NmeaMux) RunMonitor() {
+	for {
+		str := <-n.monitor_channel
+		n.Monitor(str, true, true)
 	}
 }

@@ -12,53 +12,101 @@ import (
 	"time"
 )
 
+var serial_device serial_interfacer = &serialDevice{}
+
+type serial_interfacer interface {
+	SetMode(int, string) error
+	Open() error
+	Read([]byte) (int, error)
+	Write([]byte) (int, error)
+}
+
+type serialDevice struct {
+	baud     int
+	portName string
+	port     serial.Port
+	mode     *serial.Mode
+}
+
+func (s *serialDevice) SetMode(baud int, port string) error {
+	s.mode = &serial.Mode{
+		BaudRate: s.baud,
+	}
+	s.portName = port
+	return nil
+}
+
+func (s *serialDevice) Open() error {
+	port_ser, err := serial.Open(s.portName, s.mode)
+	s.port = port_ser
+	return err
+}
+
+func (s *serialDevice) Read(buff []byte) (int, error) {
+	return s.port.Read(buff)
+}
+func (s *serialDevice) Write(buff []byte) (int, error) {
+	return s.port.Write(buff)
+}
+
 func (n *NmeaMux) serialProcess(name string) {
-	n.Monitor("started navmux serial "+name, true, true)
+	//serial_device := &serialDevice{}
+	(n.monitor_channel) <- fmt.Sprintf("started navmux serial %s", name)
 	config := n.config.Values[name]
-	baud, err := strconv.ParseInt(config["baud"][0], 10, 64)
-	if err != nil {
-		baud = 4800
-	}
-	mode := &serial.Mode{
-		BaudRate: int(baud),
-	}
-	portName := config["name"][0]
-	port, err := serial.Open(portName, mode)
+
+	var baud int64 = 4800
+	var err error = nil
 
 	tag := ""
-
 	if config["origin_tag"] != nil {
-		tag = fmt.Sprintf("@%s@", config["origin_tag"])
+		tag = fmt.Sprintf("@%s@", config["origin_tag"][0])
 	}
 
+	if len(config["baud"]) > 0 {
+		baud, err = strconv.ParseInt(config["baud"][0], 10, 32)
+		if err != nil {
+			baud = 4800
+		}
+	}
+
+	portName := config["name"][0]
+
+	serial_device.SetMode(int(baud), portName)
+
+	(n.monitor_channel) <- fmt.Sprintf("Serial device %s baud rate set to %d\n", name, baud)
+
+	err = serial_device.Open()
+
 	if err != nil {
-		fmt.Println("no serial port " + portName)
+		(n.monitor_channel) <- fmt.Sprintf("Serial device %s <name> == <%s> should be a valid port error: %s\n",
+			name, portName, err)
 	} else {
 		if len(config["outputs"]) > 0 {
-			fmt.Println("Open read serial port " + portName)
-			go serialReader(name, port, config["outputs"], tag, &n.channels)
+			(n.monitor_channel) <- fmt.Sprintf("Open read serial port " + portName)
+			go serialReader(name, serial_device, config["outputs"], tag, n.monitor_channel, &n.channels)
 		}
 		if len(config["input"]) > 0 {
-			fmt.Println("Open write serial port " + portName)
-			go serialWriter(name, port, config["input"], &n.channels)
+			(n.monitor_channel) <- fmt.Sprintf("Open write serial port " + portName)
+			go serialWriter(name, serial_device, config["input"], &n.channels)
 		}
 
 	}
 
 }
 
-func serialReader(name string, port serial.Port, outputs []string, tag string, channels *map[string](chan string)) {
+func serialReader(name string, ser serial_interfacer, outputs []string, tag string, monitor_channel chan string,
+	channels *map[string](chan string)) {
 	buff := make([]byte, 25)
 	cb := MakeByteBuffer(400, 92)
 	time.Sleep(100 * time.Millisecond)
 	for {
-		n, err := port.Read(buff)
+		n, err := ser.Read(buff)
 		if err != nil {
-			fmt.Println("FATAL Error on port " + name)
+			(monitor_channel) <- fmt.Sprintf("FATAL Error on port %s", name)
 			time.Sleep(5 * time.Second)
 		}
 		if n == 0 {
-			fmt.Println("\nEOF on read of " + name)
+			(monitor_channel) <- fmt.Sprintf("EOF on read of %s", name)
 			time.Sleep(5 * time.Second)
 		} else {
 			for i := 0; i < n; i++ {
@@ -68,7 +116,11 @@ func serialReader(name string, port serial.Port, outputs []string, tag string, c
 			}
 		}
 		for {
-			str := cb.ReadString()
+			str, err := cb.ReadString()
+			if err != nil {
+				(monitor_channel) <- err.Error()
+			}
+
 			if len(str) == 0 {
 				break
 			}
@@ -81,13 +133,13 @@ func serialReader(name string, port serial.Port, outputs []string, tag string, c
 	}
 }
 
-func serialWriter(name string, port serial.Port, input []string, channels *map[string](chan string)) {
+func serialWriter(name string, ser serial_interfacer, input []string, channels *map[string](chan string)) {
 	time.Sleep(100 * time.Millisecond)
 	for {
 		for _, in := range input {
 			str := <-(*channels)[in]
 			str += "\r\n"
-			_, err := port.Write([]byte(str))
+			_, err := ser.Write([]byte(str))
 			if err != nil {
 				fmt.Println("FATAL Error on port" + name)
 				time.Sleep(time.Minute)

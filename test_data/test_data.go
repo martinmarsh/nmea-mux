@@ -1,7 +1,87 @@
+package test_data
+
+var Bad_config = `
+Bad Yaml format
+`
+
+var Unknown_device_config = `
+compass:
+    name: /dev/ttyUSB0
+    type: test_unknown_type
+    baud:  4800
+    origin_tag: cp_
+    outputs:
+      - to_processor
+`
+
+var Bad_more_inputs_config = `
 compass:
     name: /dev/ttyUSB0
     type: serial
-    baud:  4800
+    origin_tag: cp_
+    outputs:
+      - to_processor
+
+bridge:
+    name: /dev/ttyUSB1
+    type: serial
+    origin_tag: ray_
+    baud: 38400
+    input: to_2000
+    outputs:
+      - to_processor
+      
+udp_opencpn:
+    type:  udp_client
+    input: to_udp_opencpn
+    server_address: 192.168.1.14:8011
+
+udp_autohelm:
+    type:  udp_client
+    input: to_udp_autohelm
+    server_address: 127.0.0.0:8007
+
+`
+var Bad_more_outputs_config = `
+compass:
+    name: /dev/ttyUSB0
+    type: serial
+    origin_tag: cp_
+    outputs:
+      - to_processor
+
+ais:
+    name: /dev/ttyUSB3
+    type: serial
+    baud: 38400
+    outputs:
+      - to_2000
+      - to_udp_opencpn
+
+udp_compass_listen:
+    type:  udp_listen
+    origin_tag: esp_
+    outputs:
+        - to_processor
+    port: 8006
+
+main_processor:
+    type: nmea_processor
+    input: to_processor  # NMEA data received will be stored to data base and tagged with origin prefix
+                         # if applied by the origin channel
+    log_period: 15   # zero means no log saved
+    data_retain: 15  # number of seconds before old records are removed
+    outputs:         # this list ensures the channels are created
+        - to_2000
+        - to_udp_opencpn
+        - to_udp_autohelm
+   
+`
+
+var Good_config = `
+compass:
+    name: /dev/ttyUSB0
+    type: serial
     origin_tag: cp_
     outputs:
       - to_processor
@@ -53,7 +133,7 @@ main_processor:
 compass_out:
     type: make_sentence
     input: to_compass_out
-    sentence: hdm
+    sentences: hdm
                     # Write a hdm message from stored data
     every: 200      # 200ms is minimum period between sends
     prefix: HF      # prefix so message generated starts with $HFHDM
@@ -99,3 +179,4 @@ udp_autohelm:
     type:  udp_client
     input: to_udp_autohelm
     server_address: 127.0.0.0:8007
+`
