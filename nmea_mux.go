@@ -9,6 +9,7 @@ package nmea_mux
 
 import (
 	"fmt"
+	"github.com/martinmarsh/nmea-mux/io"
 	"github.com/spf13/viper"
 	"strings"
 )
@@ -27,6 +28,7 @@ type NmeaMux struct {
 	monitor_channel    chan string
 	channels           map[string](chan string)
 	devices            map[string](device)
+	SerialIoDevices    map[string](io.Serial_interfacer)
 }
 
 // A device is the top level item in the mux config
@@ -39,6 +41,7 @@ func NewMux() *NmeaMux {
 		monitor_channel:    make(chan string, 5),
 		channels:           make(map[string](chan string)),
 		devices:            make(map[string](device)),
+		SerialIoDevices:    make(map[string](io.Serial_interfacer)),
 		config: &configData{
 			Index:          make(map[string]([]string)),
 			TypeList:       make(map[string]([]string)),
@@ -152,6 +155,7 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 			switch processType {
 			case "serial":
 				n.devices[name] = (*NmeaMux).serialProcess
+				n.SerialIoDevices[name] = &io.SerialDevice{}
 			case "udp_client":
 				n.devices[name] = (*NmeaMux).udpClientProcess
 			case "nmea_processor":

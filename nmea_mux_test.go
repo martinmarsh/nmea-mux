@@ -64,20 +64,20 @@ func TestConfigLoaded(t *testing.T) {
 		t.Errorf("Did not find all devices values - expected 11 got %d", len(n.config.Values))
 	}
 	//list of input channel names each containing a list device names using them
-	if len(n.config.InChannelList) != 7 {
-		t.Errorf("Did not find all input channels - expected 7 got %d", len(n.config.InChannelList))
+	if len(n.config.InChannelList) != 8 {
+		t.Errorf("Did not find all input channels - expected 8 got %d", len(n.config.InChannelList))
 	}
 	//list of out channel names each containing a list of device names using them
-	if len(n.config.OutChannelList) != 7 {
-		t.Errorf("Did not find all output channels - expected 7 got %d", len(n.config.OutChannelList))
+	if len(n.config.OutChannelList) != 8 {
+		t.Errorf("Did not find all output channels - expected 8 got %d", len(n.config.OutChannelList))
 	}
 	//list of device names each containing a pointer to a processing function
 	if len(n.devices) != 11 {
 		t.Errorf("Did not assign processing methods expected 11 got %d", len(n.devices))
 	}
 	//list of out channel names each containing a channel
-	if len(n.channels) != 7 {
-		t.Errorf("Did not assign channels expected 7 got %d", len(n.channels))
+	if len(n.channels) != 8 {
+		t.Errorf("Did not assign channels expected 8 got %d", len(n.channels))
 	}
 }
 

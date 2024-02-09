@@ -91,7 +91,7 @@ gps:_backup:
     type: serial
     baud: 38400
     origin_tag: gm_
-    input: to_2000
+    input: to_local_gps
     outputs:
       - to_processor
 
@@ -158,6 +158,7 @@ gps_out:
     outputs:
         - to_udp_opencpn
         - to_2000
+        - to_local_gps
     
 depth_out:
     type: make_sentence
@@ -173,7 +174,8 @@ depth_out:
 udp_opencpn:
     type:  udp_client
     input: to_udp_opencpn
-    server_address: 192.168.1.14:8011
+    #server_address: 192.168.1.14:8011
+    server_address: 192.168.1.166:8005
 
 udp_autohelm:
     type:  udp_client
