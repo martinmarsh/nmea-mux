@@ -45,7 +45,8 @@ func (cb *circular_byte_buffer) Write_byte(b byte) {
 	}
 }
 
-func (cb *circular_byte_buffer) ReadString() string {
+func (cb *circular_byte_buffer) ReadString() (string, error) {
+	var err error = nil
 	if cb.cr_count > 0 {
 		i := 0
 		for {
@@ -53,17 +54,17 @@ func (cb *circular_byte_buffer) ReadString() string {
 			if b != 13 {
 				cb.ret_buffer[i] = b
 			} else {
-				return string(cb.ret_buffer[:i])
+				return string(cb.ret_buffer[:i]), err
 			}
 			i++
 			if i >= cb.ret_size {
-				fmt.Printf("No CR in string corrupt o/p = %s\n", string(cb.ret_buffer[:i]))
-				return string(cb.ret_buffer[:i])
+				err := fmt.Errorf(fmt.Sprintf("No CR in string corrupt o/p = %s\n", string(cb.ret_buffer[:i])))
+				return string(cb.ret_buffer[:i]), err
 			}
 		}
 
 	} else {
-		return ""
+		return "", err
 	}
 
 }
@@ -82,42 +83,4 @@ func (cb *circular_byte_buffer) Read_byte() (byte, error) {
 		cb.cr_count--
 	}
 	return b, nil
-}
-
-type circular_float_buffer struct {
-	end       int
-	buffer    []float64
-	read_pos  int
-	write_pos int
-	Count     int
-}
-
-func MakeFloatBuffer(size int) *circular_float_buffer {
-	p := circular_float_buffer{
-		end:       size - 1,
-		buffer:    make([]float64, size),
-		read_pos:  0,
-		write_pos: 0,
-		Count:     0,
-	}
-	return &p
-}
-
-func (cb *circular_float_buffer) Write(fv float64) {
-	if cb.write_pos >= cb.end {
-		cb.write_pos = 0
-	}
-	cb.buffer[cb.write_pos] = fv
-	cb.write_pos++
-	cb.Count++
-}
-
-func (cb *circular_float_buffer) Read() float64 {
-	if cb.read_pos >= cb.end {
-		cb.read_pos = 0
-	}
-	fv := cb.buffer[cb.read_pos]
-	cb.read_pos++
-	cb.Count--
-	return fv
 }
