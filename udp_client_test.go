@@ -42,6 +42,7 @@ func (m *mockUdpClientDevice) Write(s string) (int, error) {
 	return len(s), m.write_error
 }
 
+/* Uncomment for integration test
 func TestUdpClientRealSend(t *testing.T) {
 	n := NewMux()
 	n.LoadConfig("./test_data/", "config", "yaml", test_data.Good_config)
@@ -52,6 +53,7 @@ func TestUdpClientRealSend(t *testing.T) {
 	(n.channels["to_udp_opencpn"]) <- send
 	time.Sleep(5000 * time.Millisecond)
 }
+*/
 
 func TestUdpClientMockSend(t *testing.T) {
 	n := NewMux()

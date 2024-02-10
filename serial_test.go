@@ -65,6 +65,7 @@ func TestRunSerialFail(t *testing.T) {
 	expected_chan_response_test(n.monitor_channel, "Serial device compass <name> == </dev/ttyUSB0> should be a valid port error:", false, t)
 }
 
+// The mock works by injecting a mock io object as defined by the interface before calling run device
 func TestRunSerialEOF(t *testing.T) {
 	// Normally serial read will wait and never return 0 bytes unless end of file
 	n := NewMux()

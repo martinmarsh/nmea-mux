@@ -50,7 +50,9 @@ type UdpClientDevice struct {
 }
 
 type UdpServerDevice struct {
-	pc net.PacketConn
+	pc         net.PacketConn
+	ReturnAddr net.Addr
+	buffer     []byte
 }
 
 type UdpClient_interfacer interface {
@@ -64,7 +66,7 @@ type UdpClient_interfacer interface {
 type UdpServer_interfacer interface {
 	Listen(server_port string) error
 	Close() error
-	Read(p []byte) (int, error)
+	Read() (string, error)
 }
 
 func (u *UdpClientDevice) Open(server_address string) error {
@@ -92,6 +94,7 @@ func (u *UdpClientDevice) Write(s string) (int, error) {
 
 func (u *UdpServerDevice) Listen(server_port string) error {
 	var err error = nil
+	u.buffer = make([]byte, 1024)
 	u.pc, err = net.ListenPacket("udp", "0.0.0.0:"+server_port)
 	return err
 }
@@ -100,7 +103,13 @@ func (u *UdpServerDevice) Close() error {
 	return u.pc.Close()
 }
 
-func (u *UdpServerDevice) Read(p []byte) (int, error) {
-	l, _, err := u.pc.ReadFrom(p)
-	return l, err
+func (u *UdpServerDevice) Read() (string, error) {
+	var err error = nil
+	ret_str := ""
+	l := 0
+	l, u.ReturnAddr, err = u.pc.ReadFrom(u.buffer)
+	if err == nil {
+		ret_str = string(u.buffer[:l])
+	}
+	return ret_str, err
 }
