@@ -11,113 +11,67 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	//"strconv"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/martinmarsh/nmea0183"
 )
 
-type CONDITION struct {
-	variable string
-	value    string
-	or       bool // if true the comparison result will be or with last else and is assumed
-}
-
-type ALTERNATIVE struct {
-	variable     string
-	replace_with string
-	conditions   map[string]*CONDITION
-}
-
-type GENERATE struct {
-	sentence        string
-	prefix          string
-	every           int
-	send_to         []string
-	origin_tag      string
-	else_origin_tag string
-	then_origin_tag string
-	or_if           []string
-	and_if          []string
-
-	alternatives map[string]*ALTERNATIVE
-}
 
 func (n *NmeaMux) nmeaProcessorProcess(name string) {
 	var Sentences nmea0183.Sentences
-	var generators = make(map[string]*GENERATE)
 	config := n.config.Values[name]
-	input := config["input"][0]
-
-	err := Sentences.Load()
-	if err != nil {
-		fmt.Println(fmt.Errorf("**** Error config: %w", err))
-		Sentences.SaveLoadDefault()
+	//example settings
+	//type: nmea_processor # Links to any make_sentence types with processor field referring to this processor
+    //input: to_processor  # NMEA data received will be stored to data base and tagged with origin prefix
+    //                     # if applied by the origin channel
+    //log_period: 15   # zero means no log saved
+    //data_retain: 15  # number of seconds before old records are removed
+	input := ""
+	if inputs, found := config["input"]; found {
+		if len(inputs) == 1 {
+		}else {
+			(n.monitor_channel) <- fmt.Sprintf("Processor <%s> has invalid number of inputs must be exactly 1", name)
+		}
 	}
-	nmea := Sentences.MakeHandle()
 
-	go fileLogger(name, input, &n.channels, nmea)
-	fmt.Println(config)
-	/*
-		for dotKey, value := range config {
-			key := strings.Split(dotKey, ".")
-			if key[0] == "0183_generators" {
-				if generators[key[1]] == nil {
-					generators[key[1]] = &GENERATE{sentence: key[1]}
-					generators[key[1]].alternatives = make(map[string]*ALTERNATIVE)
-				}
-				for j := 2; j < len(key); j++ {
-					switch key[j] {
-					case "every":
-						generators[key[1]].every, _ = strconv.Atoi(value[0])
-					case "prefix":
-						generators[key[1]].prefix = value[0]
-					case "send_to":
-						generators[key[1]].send_to = value
-
-					case "use_origin_tag":
-						generators[key[1]].origin_tag = value[0]
-
-					case "then_origin_tag":
-						generators[key[1]].then_origin_tag = value[0]
-
-					case "else_origin_tag":
-						generators[key[1]].else_origin_tag = value[0]
-
-					case "if":
-						generators[key[1]].and_if = value
-
-					case "alternative":
-						if generators[key[1]].alternatives[key[j+1]] == nil {
-							generators[key[1]].alternatives[key[j+1]] = &ALTERNATIVE{variable: key[j+1]}
-						}
-					case "replace_with":
-						if generators[key[1]].alternatives[key[j-1]] == nil {
-							generators[key[1]].alternatives[key[j-1]] = &ALTERNATIVE{variable: key[j+1]}
-						}
-						generators[key[1]].alternatives[key[j-1]].replace_with = value[0]
-
-					default:
-						fmt.Printf("missed %s - %s\n", key[j], key[1])
-					}
-
-				}
+	log_period := 0
+	if log_periods, found := config["log_period"]; found {
+		if len(log_periods) == 1 {
+			if log_p, err:= strconv.ParseInt(log_periods[0], 10, 32); err == nil {
+				log_period = int(log_p)
 			}
 		}
-	*/
-	for n, g := range generators {
-		fmt.Printf("gen %s every %d, prefix %s sentence %s goto %s \n", n, g.every, g.prefix, g.sentence, g.send_to)
-		for a, ga := range g.alternatives {
-			fmt.Printf("alternatives %s  %s replace with %s\n", a, ga.variable, ga.replace_with)
-		}
-
 	}
+
+	if err := Sentences.Load(); err != nil{
+		(n.monitor_channel) <- fmt.Sprintf("Processor <%s> could not load Nmea sentence config. A default was created", name)
+		Sentences.SaveLoadDefault()
+	}
+
+	nmea := Sentences.MakeHandle()
+
+	if data_retains, found := config["data_retain"]; found {
+		if len(data_retains) == 1 {
+			if retain, err:= strconv.ParseInt(data_retains[0], 10, 64); err == nil {
+				nmea.Preferences(retain, true)
+			}
+		}
+	}
+
+	if log_period > 0 {
+		go fileLogger(name, input, &n.channels, log_period, nmea)
+	}
+
+	// now we need to find matching sentence definitions
+	
+	
 }
 
-func fileLogger(name string, input string, channels *map[string](chan string), nmea *nmea0183.Handle) {
+func fileLogger(name string, input string, channels *map[string](chan string), log_period int, nmea *nmea0183.Handle) {
 	var writer *bufio.Writer
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(time.Duration(log_period) * time.Second)
 	defer ticker.Stop()
 	file_closed := true
 

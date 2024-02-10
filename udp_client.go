@@ -13,10 +13,30 @@ import (
 
 func (n *NmeaMux) udpClientProcess(name string) {
 	config := n.config.Values[name]
-	server_addr := config["server_address"][0]
-	input_channel := config["input"][0]
-	(n.monitor_channel) <- fmt.Sprintf("Started udp client %s sending messages from %s", name, input_channel)
-	go udpWriter(name, n.UdpClientIoDevices[name], server_addr, input_channel, n.monitor_channel, &n.channels)
+	server_addr := ""
+	bad_config := false
+	if server_addrs, found := config["server_address"]; found {
+		if len(server_addrs) == 1 {
+			server_addr = server_addrs[0]
+		} else {
+			(n.monitor_channel) <- fmt.Sprintf("Udp client <%s> has invalid number of server addresses must be exactly 1", name)
+			bad_config = true
+		}
+	}
+
+	input_channel := ""
+	if inputs, found := config["input"]; found {
+		if len(inputs) == 1 {
+			input_channel = inputs[0]
+		}else {
+			(n.monitor_channel) <- fmt.Sprintf("Udp client <%s> has invalid number of inputs must be exactly 1", name)
+			bad_config = true
+		}
+	}
+	if !bad_config{
+		(n.monitor_channel) <- fmt.Sprintf("Started udp client %s sending messages from %s", name, input_channel)
+		go udpWriter(name, n.UdpClientIoDevices[name], server_addr, input_channel, n.monitor_channel, &n.channels)
+	}
 }
 
 func udpWriter(name string, Udp io.UdpClient_interfacer, server_addr string, input string, monitor_channel chan string,

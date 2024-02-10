@@ -52,32 +52,32 @@ func TestConfigLoaded(t *testing.T) {
 		t.Errorf("Config. Failed to Load err: %s", err)
 	}
 	//list of device names each containing a list the associated config names
-	if len(n.config.Index) != 11 {
-		t.Errorf("Did not find all devices - expected 11 got %d", len(n.config.Index))
+	if len(n.config.Index) != 12 {
+		t.Errorf("Did not find all devices - expected 12 got %d", len(n.config.Index))
 	}
 	//list of each type names found each containing a list associated device names
-	if len(n.config.TypeList) != 5 {
-		t.Errorf("Did not find all device types - expected 5 got %d", len(n.config.TypeList))
+	if len(n.config.TypeList) != 6 {
+		t.Errorf("Did not find all device types - expected 6 got %d", len(n.config.TypeList))
 	}
 	//list of each device by name each containing a list of associated config names and values
-	if len(n.config.Values) != 11 {
-		t.Errorf("Did not find all devices values - expected 11 got %d", len(n.config.Values))
+	if len(n.config.Values) != 12 {
+		t.Errorf("Did not find all devices values - expected 12 got %d", len(n.config.Values))
 	}
 	//list of input channel names each containing a list device names using them
-	if len(n.config.InChannelList) != 8 {
-		t.Errorf("Did not find all input channels - expected 8 got %d", len(n.config.InChannelList))
+	if len(n.config.InChannelList) != 5 {
+		t.Errorf("Did not find all input channels - expected 5 got %d", len(n.config.InChannelList))
 	}
 	//list of out channel names each containing a list of device names using them
-	if len(n.config.OutChannelList) != 8 {
-		t.Errorf("Did not find all output channels - expected 8 got %d", len(n.config.OutChannelList))
+	if len(n.config.OutChannelList) != 5 {
+		t.Errorf("Did not find all output channels - expected 5 got %d", len(n.config.OutChannelList))
 	}
 	//list of device names each containing a pointer to a processing function
-	if len(n.devices) != 11 {
-		t.Errorf("Did not assign processing methods expected 11 got %d", len(n.devices))
+	if len(n.devices) != 12 {
+		t.Errorf("Did not assign processing methods expected 12 got %d", len(n.devices))
 	}
 	//list of out channel names each containing a channel
-	if len(n.channels) != 8 {
-		t.Errorf("Did not assign channels expected 8 got %d", len(n.channels))
+	if len(n.channels) != 5 {
+		t.Errorf("Did not assign channels expected 5 got %d", len(n.channels))
 	}
 }
 

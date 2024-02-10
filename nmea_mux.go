@@ -170,6 +170,8 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 				n.UdpServerIoDevices[name] = &io.UdpServerDevice{}
 			case "make_sentence":
 				n.devices[name] = (*NmeaMux).makeSentenceProcess
+			case "monitor":
+				n.devices[name] = (*NmeaMux).RunMonitor
 			default:
 				err = fmt.Errorf("unknown device found: %s", processType)
 			}
@@ -196,7 +198,9 @@ func (n *NmeaMux) Run(settings ...bool) {
 		n.RunDevice(name, v)
 	}
 	if len(settings) == 0 || settings[0] {
-		go n.RunMonitor()
+		if _, found := n.config.TypeList["monitor"]; !found {
+			go n.RunMonitor("main_monitor")
+		}
 	}
 }
 
@@ -204,7 +208,13 @@ func (n *NmeaMux) RunDevice(name string, device_method device) {
 	device_method(n, name) // runs  func (n *NmeaMux) device_method (name) note unexpected parameter order go expects
 }
 
-func (n *NmeaMux) RunMonitor() {
+func (n *NmeaMux) RunMonitor(name string) {
+	//config := n.config.Values[name]  
+	//config may not exist
+	if config, found := n.config.Values[name]; found {
+		fmt.Println(config)
+	}
+
 	for {
 		str := <-n.monitor_channel
 		n.Monitor(str, true, true)
