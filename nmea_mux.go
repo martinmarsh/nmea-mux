@@ -29,6 +29,8 @@ type NmeaMux struct {
 	channels           map[string](chan string)
 	devices            map[string](device)
 	SerialIoDevices    map[string](io.Serial_interfacer)
+	UdpClientIoDevices map[string](io.UdpClient_interfacer)
+	UdpServerIoDevices map[string](io.UdpServer_interfacer)
 }
 
 // A device is the top level item in the mux config
@@ -42,6 +44,8 @@ func NewMux() *NmeaMux {
 		channels:           make(map[string](chan string)),
 		devices:            make(map[string](device)),
 		SerialIoDevices:    make(map[string](io.Serial_interfacer)),
+		UdpClientIoDevices: make(map[string](io.UdpClient_interfacer)),
+		UdpServerIoDevices: make(map[string](io.UdpServer_interfacer)),
 		config: &configData{
 			Index:          make(map[string]([]string)),
 			TypeList:       make(map[string]([]string)),
@@ -158,10 +162,12 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 				n.SerialIoDevices[name] = &io.SerialDevice{}
 			case "udp_client":
 				n.devices[name] = (*NmeaMux).udpClientProcess
+				n.UdpClientIoDevices[name] = &io.UdpClientDevice{}
 			case "nmea_processor":
 				n.devices[name] = (*NmeaMux).nmeaProcessorProcess
 			case "udp_listen":
 				n.devices[name] = (*NmeaMux).udpListenerProcess
+				n.UdpServerIoDevices[name] = &io.UdpServerDevice{}
 			case "make_sentence":
 				n.devices[name] = (*NmeaMux).makeSentenceProcess
 			default:

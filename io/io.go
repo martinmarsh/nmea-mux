@@ -45,56 +45,62 @@ func (s *SerialDevice) Write(buff []byte) (int, error) {
 	return s.port.Write(buff)
 }
 
-type UpdDevice struct {
+type UdpClientDevice struct {
 	conn *net.UDPConn
-	pc   net.PacketConn
 }
 
-type UPD_interfacer interface {
-	ClientOpen(server_address string) error
-	ClientClose() error
-	ClientLocalAddr() string
-	ClientRemoteAddr() string
-	ClientWrite(s string) (int, error)
-	ServerListen(server_port string) error
-	ServerClose() error
-	ServerRead(p []byte) (int, error)
+type UdpServerDevice struct {
+	pc net.PacketConn
 }
 
-func (u *UpdDevice) ClientOpen(server_address string) error {
+type UdpClient_interfacer interface {
+	Open(server_address string) error
+	Close() error
+	LocalAddr() string
+	RemoteAddr() string
+	Write(s string) (int, error)
+}
+
+type UdpServer_interfacer interface {
+	Listen(server_port string) error
+	Close() error
+	Read(p []byte) (int, error)
+}
+
+func (u *UdpClientDevice) Open(server_address string) error {
 	var err error = nil
 	RemoteAddr, _ := net.ResolveUDPAddr("udp", server_address)
 	u.conn, err = net.DialUDP("udp", nil, RemoteAddr)
 	return err
 }
 
-func (u *UpdDevice) ClientClose() error {
+func (u *UdpClientDevice) Close() error {
 	return u.conn.Close()
 }
 
-func (u *UpdDevice) ClientLocalAddr() string {
+func (u *UdpClientDevice) LocalAddr() string {
 	return u.conn.LocalAddr().String()
 }
 
-func (u *UpdDevice) ClientRemoteAddr() string {
+func (u *UdpClientDevice) RemoteAddr() string {
 	return u.conn.RemoteAddr().String()
 }
 
-func (u *UpdDevice) ClientWrite(s string) (int, error) {
+func (u *UdpClientDevice) Write(s string) (int, error) {
 	return u.conn.Write([]byte(s))
 }
 
-func (u *UpdDevice) ServerListen(server_port string) error {
+func (u *UdpServerDevice) Listen(server_port string) error {
 	var err error = nil
 	u.pc, err = net.ListenPacket("udp", "0.0.0.0:"+server_port)
 	return err
 }
 
-func (u *UpdDevice) ServerClose() error {
+func (u *UdpServerDevice) Close() error {
 	return u.pc.Close()
 }
 
-func (u *UpdDevice) ServerRead(p []byte) (int, error) {
+func (u *UdpServerDevice) Read(p []byte) (int, error) {
 	l, _, err := u.pc.ReadFrom(p)
 	return l, err
 }
