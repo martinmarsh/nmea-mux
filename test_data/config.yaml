@@ -71,7 +71,7 @@ gps_out:
     type: make_sentence
     input: to_gps_out
     sentence: rms
-    every: 15
+    every: 1500
     prefix: DP
     use_origin_tag: ray_ 
     else_origin_tag: gm     
@@ -83,7 +83,7 @@ depth_out:
     type: make_sentence
     input: to_depth_out
     sentence: dpt
-    every: 10
+    every: 1000
     prefix: SD
     use_origin_tag: ray_ 
     outputs:

@@ -10,8 +10,9 @@ import (
 	"github.com/martinmarsh/nmea-mux/test_data"
 )
 
-func (n *NmeaMux) mockProcess(name string) {
+func (n *NmeaMux) mockProcess(name string) error {
 	(n.monitor_channel) <- fmt.Sprintf("Mock Process called with %s", name)
+	return nil
 }
 
 func expected_chan_response_test(c chan string, expected_message string, time_out_expected bool, t *testing.T) {

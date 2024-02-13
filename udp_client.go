@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func (n *NmeaMux) udpClientProcess(name string) {
+func (n *NmeaMux) udpClientProcess(name string) error {
 	config := n.config.Values[name]
 	server_addr := ""
 	bad_config := false
@@ -28,15 +28,16 @@ func (n *NmeaMux) udpClientProcess(name string) {
 	if inputs, found := config["input"]; found {
 		if len(inputs) == 1 {
 			input_channel = inputs[0]
-		}else {
+		} else {
 			(n.monitor_channel) <- fmt.Sprintf("Udp client <%s> has invalid number of inputs must be exactly 1", name)
 			bad_config = true
 		}
 	}
-	if !bad_config{
+	if !bad_config {
 		(n.monitor_channel) <- fmt.Sprintf("Started udp client %s sending messages from %s", name, input_channel)
 		go udpWriter(name, n.UdpClientIoDevices[name], server_addr, input_channel, n.monitor_channel, &n.channels)
 	}
+	return nil
 }
 
 func udpWriter(name string, Udp io.UdpClient_interfacer, server_addr string, input string, monitor_channel chan string,

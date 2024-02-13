@@ -10,7 +10,7 @@ import (
 	"github.com/martinmarsh/nmea-mux/io"
 )
 
-func (n *NmeaMux) udpListenerProcess(name string) {
+func (n *NmeaMux) udpListenerProcess(name string) error {
 	// listens on a port and writes to output channels
 	config := n.config.Values[name]
 	server_port := config["port"][0]
@@ -29,7 +29,7 @@ func (n *NmeaMux) udpListenerProcess(name string) {
 	if len(config["outputs"]) > 0 {
 		go n.udpListener(name, n.UdpServerIoDevices[name], server_port, n.monitor_channel, config["outputs"], tag)
 	}
-
+	return nil
 }
 
 func (n *NmeaMux) udpListener(name string, server io.UdpServer_interfacer, server_port string, monitor_channel chan string,

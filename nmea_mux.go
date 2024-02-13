@@ -14,6 +14,19 @@ import (
 	"strings"
 )
 
+type MuxInterfacer interface {
+	LoadConfig(...string) error
+	Monitor(string, bool, bool)
+	Run(...bool)
+	RunDevice(string, device) error
+	RunMonitor(string)
+	serialProcess(string) error
+	udpClientProcess(name string) error
+	udpListenerProcess(string) error
+	nmeaProcessorProcess(string) error
+	nmeaProcessorConfig(string, *Processor) error
+}
+
 type configData struct {
 	Index          map[string]([]string)
 	TypeList       map[string]([]string)
@@ -31,11 +44,12 @@ type NmeaMux struct {
 	SerialIoDevices    map[string](io.Serial_interfacer)
 	UdpClientIoDevices map[string](io.UdpClient_interfacer)
 	UdpServerIoDevices map[string](io.UdpServer_interfacer)
+	process_device     map[string](ProcessInterfacer)
 }
 
 // A device is the top level item in the mux config
 // type device func(m *NmeaMux)
-type device func(n *NmeaMux, s string)
+type device func(n *NmeaMux, s string) error
 
 func NewMux() *NmeaMux {
 	n := NmeaMux{
@@ -46,6 +60,7 @@ func NewMux() *NmeaMux {
 		SerialIoDevices:    make(map[string](io.Serial_interfacer)),
 		UdpClientIoDevices: make(map[string](io.UdpClient_interfacer)),
 		UdpServerIoDevices: make(map[string](io.UdpServer_interfacer)),
+		process_device:     make(map[string](ProcessInterfacer)),
 		config: &configData{
 			Index:          make(map[string]([]string)),
 			TypeList:       make(map[string]([]string)),
@@ -165,6 +180,7 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 				n.UdpClientIoDevices[name] = &io.UdpClientDevice{}
 			case "nmea_processor":
 				n.devices[name] = (*NmeaMux).nmeaProcessorProcess
+				n.process_device[name] = &Processor{}
 			case "udp_listen":
 				n.devices[name] = (*NmeaMux).udpListenerProcess
 				n.UdpServerIoDevices[name] = &io.UdpServerDevice{}
@@ -204,12 +220,12 @@ func (n *NmeaMux) Run(settings ...bool) {
 	}
 }
 
-func (n *NmeaMux) RunDevice(name string, device_method device) {
-	device_method(n, name) // runs  func (n *NmeaMux) device_method (name) note unexpected parameter order go expects
+func (n *NmeaMux) RunDevice(name string, device_method device) error {
+	return device_method(n, name) // runs  func (n *NmeaMux) device_method (name) note unexpected parameter order go expects
 }
 
-func (n *NmeaMux) RunMonitor(name string) {
-	//config := n.config.Values[name]  
+func (n *NmeaMux) RunMonitor(name string) error {
+	//config := n.config.Values[name]
 	//config may not exist
 	if config, found := n.config.Values[name]; found {
 		fmt.Println(config)
@@ -219,4 +235,5 @@ func (n *NmeaMux) RunMonitor(name string) {
 		str := <-n.monitor_channel
 		n.Monitor(str, true, true)
 	}
+
 }

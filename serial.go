@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func (n *NmeaMux) serialProcess(name string) {
+func (n *NmeaMux) serialProcess(name string) error {
 
 	(n.monitor_channel) <- fmt.Sprintf("started navmux serial %s", name)
 	config := n.config.Values[name]
@@ -21,15 +21,17 @@ func (n *NmeaMux) serialProcess(name string) {
 	var err error = nil
 
 	tag := ""
-	if origin_tags, found := config["origin_tag"]; found{
-		if len(origin_tags) > 0{
-			tag = fmt.Sprintf("@%s@",  origin_tags[0])
+	if origin_tags, found := config["origin_tag"]; found {
+		if len(origin_tags) > 0 {
+			tag = fmt.Sprintf("@%s@", origin_tags[0])
 		}
 	}
 
-	if baud_list, found := config["baud"]; found{
+	if baud_list, found := config["baud"]; found {
 		if len(baud_list) > 0 {
-			if baud, err = strconv.ParseInt(baud_list[0], 10, 32); err != nil {baud = 4800}
+			if baud, err = strconv.ParseInt(baud_list[0], 10, 32); err != nil {
+				baud = 4800
+			}
 		}
 	}
 
@@ -45,19 +47,21 @@ func (n *NmeaMux) serialProcess(name string) {
 		(n.monitor_channel) <- fmt.Sprintf("Serial device %s <name> == <%s> should be a valid port error: %s\n",
 			name, portName, err)
 	} else {
-		if outputs, found := config["outputs"]; found{
+		if outputs, found := config["outputs"]; found {
 			if len(outputs) > 0 {
 				(n.monitor_channel) <- fmt.Sprintf("Open read serial port " + portName)
 				go serialReader(name, n.SerialIoDevices[name], outputs, tag, n.monitor_channel, &n.channels)
 			}
 		}
-		if inputs, found := config["input"]; found{
+		if inputs, found := config["input"]; found {
 			if len(inputs) == 1 {
 				(n.monitor_channel) <- fmt.Sprintf("Open write serial port " + portName)
 				go serialWriter(name, n.SerialIoDevices[name], inputs[0], n.monitor_channel, &n.channels)
 			}
 		}
 	}
+
+	return nil
 
 }
 
