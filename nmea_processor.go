@@ -35,7 +35,7 @@ type sentence_def struct {
 	use_origin_tag  string
 	then_origin_tag string
 	conditions      []compare
-	outputs			[]string
+	outputs         []string
 }
 
 type Processor struct {
@@ -169,7 +169,7 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 
 	process.channels = &n.channels
 
-	go n.process_device[name].runner(name) //allows mock testing by injection of process_device dependency
+	//go n.process_device[name].runner(name) //allows mock testing by injection of process_device dependency
 	return nil
 }
 
