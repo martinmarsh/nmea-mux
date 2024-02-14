@@ -136,7 +136,7 @@ main_processor:
 compass_out:
     type: make_sentence
     processor: main_processor
-    sentences: hdm
+    sentence: hdm
                     # Write a hdm message from stored data
     every: 200      # 200ms is minimum period between sends
     prefix: HF      # prefix so message generated starts with $HFHDM

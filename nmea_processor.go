@@ -19,6 +19,7 @@ import (
 )
 
 type ProcessInterfacer interface {
+	parse_make_sentence(m_config map[string][]string, make_name string) string
 	runner(string)
 	fileLogger(string)
 	makeSentence(name string)
@@ -34,7 +35,8 @@ type sentence_def struct {
 	prefix          string
 	use_origin_tag  string
 	then_origin_tag string
-	conditions      []compare
+	else_origin_tag string
+	conditional     []compare
 	outputs         []string
 }
 
@@ -60,13 +62,15 @@ func (n *NmeaMux) nmeaProcessorProcess(name string) error {
 
 func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 	var Sentences nmea0183.Sentences
+
 	config := n.config.Values[name]
+	error_str := ""
 
 	if inputs, found := config["input"]; found {
 		if len(inputs) == 1 {
 			process.input = inputs[0]
 		} else {
-			(n.monitor_channel) <- fmt.Sprintf("Processor <%s> has invalid number of inputs must be exactly 1", name)
+			error_str += "Invalid number of input settings must be exactly 1;"
 		}
 	}
 
@@ -74,103 +78,139 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 		if len(log_periods) == 1 {
 			if log_p, err := strconv.ParseInt(log_periods[0], 10, 32); err == nil {
 				process.log_period = int(log_p)
+			} else {
+				error_str += "Log period setting is not a valid integer;"
 			}
+		} else {
+			error_str += "Log period setting must not be a list;"
 		}
 	}
 
 	if err := Sentences.Load(); err != nil {
-		(n.monitor_channel) <- fmt.Sprintf("Processor <%s> could not load Nmea sentence config. A default was created", name)
+		error_str += "Could not load Nmea sentence config. A default was created;"
 		Sentences.SaveLoadDefault()
 	}
+
+	process.Nmea = Sentences.MakeHandle()
 
 	if data_retains, found := config["data_retain"]; found {
 		if len(data_retains) == 1 {
 			if retain, err := strconv.ParseInt(data_retains[0], 10, 64); err == nil {
 				process.Nmea.Preferences(retain, true)
+			} else {
+				error_str += "Bad data retain setting;"
 			}
+		} else {
+			error_str += "Retain setting must not be a list;"
 		}
 	}
 
-	// now we need to find matching sentence definitions
-	/*
-			compass_out:
-		    type: make_sentence
-		    processor: main_processor
-		    sentences: hdm
-		                    # Write a hdm message from stored data
-		    every: 200      # 200ms is minimum period between sends
-		    prefix: HF      # prefix so message generated starts with $HFHDM
-		    use_origin_tag: cp_        # selects data tagged from esp_ source
-		    if:
-		        - esp_compass_status == 3333  # but only if compass_status is 3333 note must use spaces around ==
-		        - esp_auto == 1               # and auto == 1
-		    then_origin_tag: esp_             # selects data tagged from esp_ source
-		    outputs:
-		    - to_udp_opencpn
-		    - to_2000
-		    - to_udp_autohelm
-	*/
-	error_str := ""
+	// now we need to find and process any matching sentence definitions
+	// processor setting must match this processor by name
 
 	if makes, found := n.config.TypeList["make_sentence"]; found {
 		for _, make_name := range makes {
 			m_config := n.config.Values[make_name]
-			def := sentence_def{
-				sentence:        "",
-				prefix:          "",
-				use_origin_tag:  "",
-				then_origin_tag: "",
-			}
 
-			if processor, found := m_config["processor"]; found && processor[0] == name {
+			ok_to_pass := true
 
-				for i, v := range m_config {
-					fmt.Println(i, "=", v)
-					if len(v) == 1 {
-						val := v[0]
-						switch i {
-						case "every":
-							if every_item, err := strconv.ParseInt(val, 10, 64); err == nil {
-								process.every[make_name] = int(every_item)
-							} else {
-								error_str += ";Invalid every config"
-							}
-						case "use_origin_tag":
-							def.use_origin_tag = val
-						case "then_origin_tag":
-							def.then_origin_tag = val
-						case "if":
-
-						case "prefix":
-							def.prefix = val
-						case "sentence":
-							def.sentence = val
-						case "type":
-						case "outputs":
-							def.outputs = v
-						case "processor":
-						default:
-						}
-					} else {
-						switch i {
-						case "if":
-						case "outputs":
-						default:
-
-						}
-
-					}
-
+			if processor, found := m_config["processor"]; found {
+				if len(processor) > 1 {
+					error_str += fmt.Sprintf("make sentence %s only 1st processor listed is used rest ignored;", make_name)
 				}
+				if processor[0] != name {
+					ok_to_pass = false //belongs to another process so ignore
+				}
+			} else if len(n.config.TypeList["processor"]) != 1 {
+				error_str += fmt.Sprintf("Make sentence %s needs to be associated with a processor - add a processor setting;", make_name)
+				ok_to_pass = false
 			}
-			process.definitions[make_name] = def
+
+			if ok_to_pass {
+				error_str += process.parse_make_sentence(m_config, make_name)
+			}
 		}
 	}
 
 	process.channels = &n.channels
 
-	//go n.process_device[name].runner(name) //allows mock testing by injection of process_device dependency
+	if len(error_str) > 0 {
+		(n.monitor_channel) <- fmt.Sprintf("Processor <%s> Errors: %s", name, error_str)
+		return fmt.Errorf("Processor %s/make sentence has these errors:%s", name, error_str)
+	}
+
+	go n.process_device[name].runner(name) //allows mock testing by injection of process_device dependency
 	return nil
+}
+
+func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name string) string {
+	def := sentence_def{
+		sentence:        "",
+		prefix:          "",
+		use_origin_tag:  "",
+		then_origin_tag: "",
+		else_origin_tag: "",
+	}
+	error_str := ""
+
+	for i, v := range m_config {
+		if len(v) == 1 {
+			val := v[0]
+			switch i {
+			case "every":
+				if every_item, err := strconv.ParseInt(val, 10, 64); err == nil {
+					p.every[make_name] = int(every_item)
+				} else {
+					error_str += fmt.Sprintf("Invalid every config in %s;", make_name)
+				}
+			case "use_origin_tag":
+				def.use_origin_tag = val
+			case "then_origin_tag":
+				def.then_origin_tag = val
+			case "else_origin_tag":
+				def.else_origin_tag = val
+			case "if":
+				def.conditional = make([]compare, 1)
+				z := strings.Split(val, "==")
+				c := compare{
+					variable: z[0],
+					constant: z[1],
+				}
+				def.conditional[0] = c
+
+			case "prefix":
+				def.prefix = val
+			case "sentence":
+				def.sentence = val
+			case "type":
+			case "outputs":
+				def.outputs = v
+			case "processor":
+			default:
+				error_str += fmt.Sprintf("Unknown single assignment %s in %s;", i, make_name)
+			}
+		} else {
+			switch i {
+			case "if":
+				def.conditional = make([]compare, len(v))
+				for i, y := range v {
+
+					z := strings.Split(y, "==")
+					c := compare{
+						variable: z[0],
+						constant: z[1],
+					}
+					def.conditional[i] = c
+				}
+			case "outputs":
+				def.outputs = v
+			default:
+				error_str += fmt.Sprintf("Unknown list setting %s in %s;", i, make_name)
+			}
+		}
+	}
+	p.definitions[make_name] = def
+	return error_str
 }
 
 func (p *Processor) runner(name string) {
@@ -179,8 +219,6 @@ func (p *Processor) runner(name string) {
 	sentence_ticker := time.NewTicker(100 * time.Microsecond)
 	defer log_ticker.Stop()
 	p.file_closed = true
-	//fmt.Println(p.make_config["compass_out"])
-	//fmt.Println(p.every)
 	for m_name, every := range p.every {
 		countdowns[m_name] = every
 	}
@@ -204,20 +242,39 @@ func (p *Processor) runner(name string) {
 }
 
 func (p *Processor) makeSentence(name string) {
-	/*
-	   config := *p.make_config[name]
-	   fmt.Println(name, config, config["prefix"][0])
+	pn := p.definitions[name]
+	manCode := pn.prefix
+	sentence_name := pn.sentence
+	alternative := false
+	if len(pn.conditional) > 0 {
+		data := p.Nmea.GetMap()
+		alternative = true
+		for _, c := range pn.conditional {
+			if data[c.variable] != c.constant {
+				alternative = false
+			}
 
-	   manCode := config["prefix"][0]
-	   sentence_name := config["sentences"][0]
-	   var_prefix := config["use_origin_tag"][0]
+		}
+	}
+	try_list := make([]string, 2)
+	if alternative {
+		try_list[0] = pn.then_origin_tag
+	} else {
+		try_list[0] = pn.use_origin_tag
+	}
 
-	   str, _ :=p.Nmea.WriteSentencePrefixVar(manCode, sentence_name, var_prefix)
+	if len(try_list[0]) != 0 || len(pn.else_origin_tag) > 0 {
+		try_list[1] = pn.else_origin_tag
+	}
 
-	   	for _, v := range(config["outputs"]){
-	   		((*p.channels)[v]) <- str
-	   	}
-	*/
+	for _, var_tag := range try_list {
+		if str, err := p.Nmea.WriteSentencePrefixVar(manCode, sentence_name, var_tag); err == nil {
+			for _, v := range pn.outputs {
+				((*p.channels)[v]) <- str
+			}
+			break
+		}
+	}
 }
 
 func (p *Processor) fileLogger(name string) {

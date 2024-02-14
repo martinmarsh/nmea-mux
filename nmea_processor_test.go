@@ -8,7 +8,7 @@ package nmea_mux
 import (
 	"fmt"
 	"testing"
-	//"time"
+	"time"
 
 	"github.com/martinmarsh/nmea-mux/test_data"
 	"github.com/martinmarsh/nmea0183"
@@ -23,6 +23,9 @@ func (m *mockProcess) runner(n string) {
 	m.called = true
 	m.name = n
 }
+func (m *mockProcess) parse_make_sentence(map[string][]string, string) string {
+	return ""
+}
 func (m *mockProcess) fileLogger(string)   {}
 func (m *mockProcess) makeSentence(string) {}
 
@@ -32,9 +35,9 @@ func TestProcessor(t *testing.T) {
 	name := "main_processor"
 	m := mockProcess{called: false, name: ""}
 	n.process_device[name] = &m
-	//err := n.RunDevice(name, n.devices[name])
-	//time.Sleep(50 * time.Millisecond)
-	//fmt.Println(m, err, n.process_device["main_processor"])
+	err := n.RunDevice(name, n.devices[name])
+	time.Sleep(50 * time.Millisecond)
+	fmt.Println(m, err, n.process_device["main_processor"])
 }
 
 func TestProcessorConfig(t *testing.T) {
@@ -53,10 +56,10 @@ func TestProcessorConfig(t *testing.T) {
 	err := n.nmeaProcessorConfig(name, process)
 	fmt.Println(err)
 	fmt.Println("_______")
-	//go process.runner(name)
-	//fmt.Println("_______")
-	//go process.makeSentence("compass_out")
-	//fmt.Println(process, err)
-	//fmt.Println("_______")
+	go process.runner(name)
+	fmt.Println("_______")
+	go process.makeSentence("compass_out")
+	fmt.Println(process.definitions, err)
+	fmt.Println("_______")
 
 }
