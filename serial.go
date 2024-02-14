@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func (n *NmeaMux) serialProcess(name string) {
+func (n *NmeaMux) serialProcess(name string) error {
 
 	(n.monitor_channel) <- fmt.Sprintf("started navmux serial %s", name)
 	config := n.config.Values[name]
@@ -21,14 +21,17 @@ func (n *NmeaMux) serialProcess(name string) {
 	var err error = nil
 
 	tag := ""
-	if config["origin_tag"] != nil {
-		tag = fmt.Sprintf("@%s@", config["origin_tag"][0])
+	if origin_tags, found := config["origin_tag"]; found {
+		if len(origin_tags) > 0 {
+			tag = fmt.Sprintf("@%s@", origin_tags[0])
+		}
 	}
 
-	if len(config["baud"]) > 0 {
-		baud, err = strconv.ParseInt(config["baud"][0], 10, 32)
-		if err != nil {
-			baud = 4800
+	if baud_list, found := config["baud"]; found {
+		if len(baud_list) > 0 {
+			if baud, err = strconv.ParseInt(baud_list[0], 10, 32); err != nil {
+				baud = 4800
+			}
 		}
 	}
 
@@ -44,16 +47,21 @@ func (n *NmeaMux) serialProcess(name string) {
 		(n.monitor_channel) <- fmt.Sprintf("Serial device %s <name> == <%s> should be a valid port error: %s\n",
 			name, portName, err)
 	} else {
-		if len(config["outputs"]) > 0 {
-			(n.monitor_channel) <- fmt.Sprintf("Open read serial port " + portName)
-			go serialReader(name, n.SerialIoDevices[name], config["outputs"], tag, n.monitor_channel, &n.channels)
+		if outputs, found := config["outputs"]; found {
+			if len(outputs) > 0 {
+				(n.monitor_channel) <- fmt.Sprintf("Open read serial port " + portName)
+				go serialReader(name, n.SerialIoDevices[name], outputs, tag, n.monitor_channel, &n.channels)
+			}
 		}
-		if len(config["input"]) > 0 {
-			(n.monitor_channel) <- fmt.Sprintf("Open write serial port " + portName)
-			go serialWriter(name, n.SerialIoDevices[name], config["input"], n.monitor_channel, &n.channels)
+		if inputs, found := config["input"]; found {
+			if len(inputs) == 1 {
+				(n.monitor_channel) <- fmt.Sprintf("Open write serial port " + portName)
+				go serialWriter(name, n.SerialIoDevices[name], inputs[0], n.monitor_channel, &n.channels)
+			}
 		}
-
 	}
+
+	return nil
 
 }
 
@@ -96,20 +104,16 @@ func serialReader(name string, ser io.Serial_interfacer, outputs []string, tag s
 	}
 }
 
-func serialWriter(name string, ser io.Serial_interfacer, input []string, monitor_channel chan string,
+func serialWriter(name string, ser io.Serial_interfacer, input string, monitor_channel chan string,
 	channels *map[string](chan string)) {
 	time.Sleep(100 * time.Millisecond)
 	for {
-		for _, in := range input {
-			str := <-(*channels)[in]
-			str += "\r\n"
-			_, err := ser.Write([]byte(str))
-			if err != nil {
-				(monitor_channel) <- fmt.Sprintf("Serial write error in %s error %s", name, err)
-				time.Sleep(time.Minute)
-			}
-
+		str := <-(*channels)[input]
+		str += "\r\n"
+		_, err := ser.Write([]byte(str))
+		if err != nil {
+			(monitor_channel) <- fmt.Sprintf("Serial write error in %s error %s", name, err)
+			time.Sleep(time.Minute)
 		}
 	}
-
 }

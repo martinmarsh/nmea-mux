@@ -14,6 +14,19 @@ import (
 	"strings"
 )
 
+type MuxInterfacer interface {
+	LoadConfig(...string) error
+	Monitor(string, bool, bool)
+	Run(...bool)
+	RunDevice(string, device) error
+	RunMonitor(string)
+	serialProcess(string) error
+	udpClientProcess(name string) error
+	udpListenerProcess(string) error
+	nmeaProcessorProcess(string) error
+	nmeaProcessorConfig(string, *Processor) error
+}
+
 type configData struct {
 	Index          map[string]([]string)
 	TypeList       map[string]([]string)
@@ -29,11 +42,14 @@ type NmeaMux struct {
 	channels           map[string](chan string)
 	devices            map[string](device)
 	SerialIoDevices    map[string](io.Serial_interfacer)
+	UdpClientIoDevices map[string](io.UdpClient_interfacer)
+	UdpServerIoDevices map[string](io.UdpServer_interfacer)
+	process_device     map[string](ProcessInterfacer)
 }
 
 // A device is the top level item in the mux config
 // type device func(m *NmeaMux)
-type device func(n *NmeaMux, s string)
+type device func(n *NmeaMux, s string) error
 
 func NewMux() *NmeaMux {
 	n := NmeaMux{
@@ -42,6 +58,9 @@ func NewMux() *NmeaMux {
 		channels:           make(map[string](chan string)),
 		devices:            make(map[string](device)),
 		SerialIoDevices:    make(map[string](io.Serial_interfacer)),
+		UdpClientIoDevices: make(map[string](io.UdpClient_interfacer)),
+		UdpServerIoDevices: make(map[string](io.UdpServer_interfacer)),
+		process_device:     make(map[string](ProcessInterfacer)),
 		config: &configData{
 			Index:          make(map[string]([]string)),
 			TypeList:       make(map[string]([]string)),
@@ -158,12 +177,17 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 				n.SerialIoDevices[name] = &io.SerialDevice{}
 			case "udp_client":
 				n.devices[name] = (*NmeaMux).udpClientProcess
+				n.UdpClientIoDevices[name] = &io.UdpClientDevice{}
 			case "nmea_processor":
 				n.devices[name] = (*NmeaMux).nmeaProcessorProcess
+				n.process_device[name] = &Processor{}
 			case "udp_listen":
 				n.devices[name] = (*NmeaMux).udpListenerProcess
+				n.UdpServerIoDevices[name] = &io.UdpServerDevice{}
 			case "make_sentence":
 				n.devices[name] = (*NmeaMux).makeSentenceProcess
+			case "monitor":
+				n.devices[name] = (*NmeaMux).RunMonitor
 			default:
 				err = fmt.Errorf("unknown device found: %s", processType)
 			}
@@ -190,17 +214,26 @@ func (n *NmeaMux) Run(settings ...bool) {
 		n.RunDevice(name, v)
 	}
 	if len(settings) == 0 || settings[0] {
-		go n.RunMonitor()
+		if _, found := n.config.TypeList["monitor"]; !found {
+			go n.RunMonitor("main_monitor")
+		}
 	}
 }
 
-func (n *NmeaMux) RunDevice(name string, device_method device) {
-	device_method(n, name) // runs  func (n *NmeaMux) device_method (name) note unexpected parameter order go expects
+func (n *NmeaMux) RunDevice(name string, device_method device) error {
+	return device_method(n, name) // runs  func (n *NmeaMux) device_method (name) note unexpected parameter order go expects
 }
 
-func (n *NmeaMux) RunMonitor() {
+func (n *NmeaMux) RunMonitor(name string) error {
+	//config := n.config.Values[name]
+	//config may not exist
+	if config, found := n.config.Values[name]; found {
+		fmt.Println(config)
+	}
+
 	for {
 		str := <-n.monitor_channel
 		n.Monitor(str, true, true)
 	}
+
 }

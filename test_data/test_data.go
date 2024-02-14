@@ -43,6 +43,10 @@ udp_autohelm:
 
 `
 var Bad_more_outputs_config = `
+monitor:
+    name: main_monitor
+    type: monitor
+
 compass:
     name: /dev/ttyUSB0
     type: serial
@@ -79,6 +83,9 @@ main_processor:
 `
 
 var Good_config = `
+monitor:
+    type: monitor
+
 compass:
     name: /dev/ttyUSB0
     type: serial
@@ -120,20 +127,16 @@ udp_compass_listen:
     port: 8006
 
 main_processor:
-    type: nmea_processor
+    type: nmea_processor # Links to any make_sentence types with processor field referring to this processor
     input: to_processor  # NMEA data received will be stored to data base and tagged with origin prefix
                          # if applied by the origin channel
     log_period: 15   # zero means no log saved
     data_retain: 15  # number of seconds before old records are removed
-    outputs:
-        - to_compass_out
-        - to_gps_out
-        - to_depth_out
       
 compass_out:
     type: make_sentence
-    input: to_compass_out
-    sentences: hdm
+    processor: main_processor
+    sentence: hdm
                     # Write a hdm message from stored data
     every: 200      # 200ms is minimum period between sends
     prefix: HF      # prefix so message generated starts with $HFHDM
@@ -149,7 +152,7 @@ compass_out:
     
 gps_out:
     type: make_sentence
-    input: to_gps_out
+    processor: main_processor
     sentence: rms
     every: 15
     prefix: DP
@@ -162,7 +165,7 @@ gps_out:
     
 depth_out:
     type: make_sentence
-    input: to_depth_out
+    processor: main_processor
     sentence: dpt
     every: 10
     prefix: SD
@@ -174,11 +177,10 @@ depth_out:
 udp_opencpn:
     type:  udp_client
     input: to_udp_opencpn
-    #server_address: 192.168.1.14:8011
-    server_address: 192.168.1.166:8005
+    server_address: 192.168.1.14:8011
 
 udp_autohelm:
     type:  udp_client
     input: to_udp_autohelm
-    server_address: 127.0.0.0:8007
+    server_address: 127.0.0.1:8007
 `

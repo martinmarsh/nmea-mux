@@ -11,151 +11,299 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	//"strconv"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/martinmarsh/nmea0183"
 )
 
-type CONDITION struct {
+type ProcessInterfacer interface {
+	parse_make_sentence(m_config map[string][]string, make_name string) string
+	runner(string)
+	fileLogger(string)
+	makeSentence(name string)
+}
+
+type compare struct {
 	variable string
-	value    string
-	or       bool // if true the comparison result will be or with last else and is assumed
+	constant string
 }
 
-type ALTERNATIVE struct {
-	variable     string
-	replace_with string
-	conditions   map[string]*CONDITION
-}
-
-type GENERATE struct {
+type sentence_def struct {
 	sentence        string
 	prefix          string
-	every           int
-	send_to         []string
-	origin_tag      string
-	else_origin_tag string
+	use_origin_tag  string
 	then_origin_tag string
-	or_if           []string
-	and_if          []string
-
-	alternatives map[string]*ALTERNATIVE
+	else_origin_tag string
+	conditional     []compare
+	outputs         []string
 }
 
-func (n *NmeaMux) nmeaProcessorProcess(name string) {
-	var Sentences nmea0183.Sentences
-	var generators = make(map[string]*GENERATE)
-	config := n.config.Values[name]
-	input := config["input"][0]
+type Processor struct {
+	every       map[string]int
+	definitions map[string]sentence_def
+	Nmea        *nmea0183.Handle
+	log_period  int
+	input       string
+	channels    *map[string](chan string)
+	writer      *bufio.Writer
+	file_closed bool
+}
 
-	err := Sentences.Load()
-	if err != nil {
-		fmt.Println(fmt.Errorf("**** Error config: %w", err))
+func (n *NmeaMux) nmeaProcessorProcess(name string) error {
+	process := &Processor{
+		definitions: make(map[string]sentence_def),
+		every:       make(map[string]int),
+	}
+	return n.nmeaProcessorConfig(name, process)
+
+}
+
+func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
+	var Sentences nmea0183.Sentences
+
+	config := n.config.Values[name]
+	error_str := ""
+
+	if inputs, found := config["input"]; found {
+		if len(inputs) == 1 {
+			process.input = inputs[0]
+		} else {
+			error_str += "Invalid number of input settings must be exactly 1;"
+		}
+	}
+
+	if log_periods, found := config["log_period"]; found {
+		if len(log_periods) == 1 {
+			if log_p, err := strconv.ParseInt(log_periods[0], 10, 32); err == nil {
+				process.log_period = int(log_p)
+			} else {
+				error_str += "Log period setting is not a valid integer;"
+			}
+		} else {
+			error_str += "Log period setting must not be a list;"
+		}
+	}
+
+	if err := Sentences.Load(); err != nil {
+		error_str += "Could not load Nmea sentence config. A default was created;"
 		Sentences.SaveLoadDefault()
 	}
-	nmea := Sentences.MakeHandle()
 
-	go fileLogger(name, input, &n.channels, nmea)
-	fmt.Println(config)
-	/*
-		for dotKey, value := range config {
-			key := strings.Split(dotKey, ".")
-			if key[0] == "0183_generators" {
-				if generators[key[1]] == nil {
-					generators[key[1]] = &GENERATE{sentence: key[1]}
-					generators[key[1]].alternatives = make(map[string]*ALTERNATIVE)
+	process.Nmea = Sentences.MakeHandle()
+
+	if data_retains, found := config["data_retain"]; found {
+		if len(data_retains) == 1 {
+			if retain, err := strconv.ParseInt(data_retains[0], 10, 64); err == nil {
+				process.Nmea.Preferences(retain, true)
+			} else {
+				error_str += "Bad data retain setting;"
+			}
+		} else {
+			error_str += "Retain setting must not be a list;"
+		}
+	}
+
+	// now we need to find and process any matching sentence definitions
+	// processor setting must match this processor by name
+
+	if makes, found := n.config.TypeList["make_sentence"]; found {
+		for _, make_name := range makes {
+			m_config := n.config.Values[make_name]
+
+			ok_to_pass := true
+
+			if processor, found := m_config["processor"]; found {
+				if len(processor) > 1 {
+					error_str += fmt.Sprintf("make sentence %s only 1st processor listed is used rest ignored;", make_name)
 				}
-				for j := 2; j < len(key); j++ {
-					switch key[j] {
-					case "every":
-						generators[key[1]].every, _ = strconv.Atoi(value[0])
-					case "prefix":
-						generators[key[1]].prefix = value[0]
-					case "send_to":
-						generators[key[1]].send_to = value
-
-					case "use_origin_tag":
-						generators[key[1]].origin_tag = value[0]
-
-					case "then_origin_tag":
-						generators[key[1]].then_origin_tag = value[0]
-
-					case "else_origin_tag":
-						generators[key[1]].else_origin_tag = value[0]
-
-					case "if":
-						generators[key[1]].and_if = value
-
-					case "alternative":
-						if generators[key[1]].alternatives[key[j+1]] == nil {
-							generators[key[1]].alternatives[key[j+1]] = &ALTERNATIVE{variable: key[j+1]}
-						}
-					case "replace_with":
-						if generators[key[1]].alternatives[key[j-1]] == nil {
-							generators[key[1]].alternatives[key[j-1]] = &ALTERNATIVE{variable: key[j+1]}
-						}
-						generators[key[1]].alternatives[key[j-1]].replace_with = value[0]
-
-					default:
-						fmt.Printf("missed %s - %s\n", key[j], key[1])
-					}
-
+				if processor[0] != name {
+					ok_to_pass = false //belongs to another process so ignore
 				}
+			} else if len(n.config.TypeList["processor"]) != 1 {
+				error_str += fmt.Sprintf("Make sentence %s needs to be associated with a processor - add a processor setting;", make_name)
+				ok_to_pass = false
+			}
+
+			if ok_to_pass {
+				error_str += process.parse_make_sentence(m_config, make_name)
 			}
 		}
-	*/
-	for n, g := range generators {
-		fmt.Printf("gen %s every %d, prefix %s sentence %s goto %s \n", n, g.every, g.prefix, g.sentence, g.send_to)
-		for a, ga := range g.alternatives {
-			fmt.Printf("alternatives %s  %s replace with %s\n", a, ga.variable, ga.replace_with)
-		}
-
 	}
+
+	process.channels = &n.channels
+
+	if len(error_str) > 0 {
+		(n.monitor_channel) <- fmt.Sprintf("Processor <%s> Errors: %s", name, error_str)
+		return fmt.Errorf("Processor %s/make sentence has these errors:%s", name, error_str)
+	}
+
+	go n.process_device[name].runner(name) //allows mock testing by injection of process_device dependency
+	return nil
 }
 
-func fileLogger(name string, input string, channels *map[string](chan string), nmea *nmea0183.Handle) {
-	var writer *bufio.Writer
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
-	file_closed := true
+func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name string) string {
+	def := sentence_def{
+		sentence:        "",
+		prefix:          "",
+		use_origin_tag:  "",
+		then_origin_tag: "",
+		else_origin_tag: "",
+	}
+	error_str := ""
+
+	for i, v := range m_config {
+		if len(v) == 1 {
+			val := v[0]
+			switch i {
+			case "every":
+				if every_item, err := strconv.ParseInt(val, 10, 64); err == nil {
+					p.every[make_name] = int(every_item)
+				} else {
+					error_str += fmt.Sprintf("Invalid every config in %s;", make_name)
+				}
+			case "use_origin_tag":
+				def.use_origin_tag = val
+			case "then_origin_tag":
+				def.then_origin_tag = val
+			case "else_origin_tag":
+				def.else_origin_tag = val
+			case "if":
+				def.conditional = make([]compare, 1)
+				z := strings.Split(val, "==")
+				c := compare{
+					variable: z[0],
+					constant: z[1],
+				}
+				def.conditional[0] = c
+
+			case "prefix":
+				def.prefix = val
+			case "sentence":
+				def.sentence = val
+			case "type":
+			case "outputs":
+				def.outputs = v
+			case "processor":
+			default:
+				error_str += fmt.Sprintf("Unknown single assignment %s in %s;", i, make_name)
+			}
+		} else {
+			switch i {
+			case "if":
+				def.conditional = make([]compare, len(v))
+				for i, y := range v {
+
+					z := strings.Split(y, "==")
+					c := compare{
+						variable: z[0],
+						constant: z[1],
+					}
+					def.conditional[i] = c
+				}
+			case "outputs":
+				def.outputs = v
+			default:
+				error_str += fmt.Sprintf("Unknown list setting %s in %s;", i, make_name)
+			}
+		}
+	}
+	p.definitions[make_name] = def
+	return error_str
+}
+
+func (p *Processor) runner(name string) {
+	countdowns := make(map[string]int)
+	log_ticker := time.NewTicker(time.Duration(p.log_period) * time.Second)
+	sentence_ticker := time.NewTicker(100 * time.Microsecond)
+	defer log_ticker.Stop()
+	p.file_closed = true
+	for m_name, every := range p.every {
+		countdowns[m_name] = every
+	}
 
 	for {
 		select {
-		case str := <-(*channels)[input]:
-			parse(str, "", nmea)
-		case <-ticker.C:
-			data_map := nmea.GetMap()
-
-			if file_closed {
-				if dt, ok := data_map["datetime"]; ok {
-					dt = strings.Replace(dt[:16], ":", "_", -1)
-					file_name := fmt.Sprintf("ships_log_%s.txt", dt)
-					f, err := os.Create(file_name)
-					writer = bufio.NewWriter(f)
-					if err != nil {
-						fmt.Println("FATAL Error logging: " + name)
-						time.Sleep(time.Minute)
-					} else {
-						file_closed = false
-					}
-
+		case str := <-(*p.channels)[p.input]:
+			parse(str, "", p.Nmea)
+		case <-log_ticker.C:
+			p.fileLogger(name)
+		case <-sentence_ticker.C:
+			for m_name, every := range p.every {
+				countdowns[m_name] -= 100
+				if countdowns[m_name] <= 0 {
+					countdowns[m_name] = every
+					p.makeSentence(name)
 				}
-
-			} else {
-				data_json, _ := json.Marshal(data_map)
-				rec_str := fmt.Sprintf("%s\n", string(data_json))
-				//fmt.Println(rec_str)
-				_, err := writer.WriteString(rec_str)
-				if err != nil {
-					fmt.Println("FATAL Error on write" + name)
-					writer.Flush()
-				}
-				writer.Flush()
 			}
 		}
 	}
+}
+
+func (p *Processor) makeSentence(name string) {
+	pn := p.definitions[name]
+	manCode := pn.prefix
+	sentence_name := pn.sentence
+	alternative := false
+	if len(pn.conditional) > 0 {
+		data := p.Nmea.GetMap()
+		alternative = true
+		for _, c := range pn.conditional {
+			if data[c.variable] != c.constant {
+				alternative = false
+			}
+
+		}
+	}
+	try_list := make([]string, 2)
+	if alternative {
+		try_list[0] = pn.then_origin_tag
+	} else {
+		try_list[0] = pn.use_origin_tag
+	}
+
+	if len(try_list[0]) != 0 || len(pn.else_origin_tag) > 0 {
+		try_list[1] = pn.else_origin_tag
+	}
+
+	for _, var_tag := range try_list {
+		if str, err := p.Nmea.WriteSentencePrefixVar(manCode, sentence_name, var_tag); err == nil {
+			for _, v := range pn.outputs {
+				((*p.channels)[v]) <- str
+			}
+			break
+		}
+	}
+}
+
+func (p *Processor) fileLogger(name string) {
+	data_map := p.Nmea.GetMap()
+
+	if p.file_closed {
+		if dt, ok := data_map["datetime"]; ok {
+			dt = strings.Replace(dt[:16], ":", "_", -1)
+			file_name := fmt.Sprintf("ships_log_%s.txt", dt)
+			if f, err := os.Create(file_name); err == nil {
+				p.writer = bufio.NewWriter(f)
+				p.file_closed = false
+			} else {
+				fmt.Println("FATAL Error logging: " + name)
+				time.Sleep(time.Minute)
+				p.file_closed = true
+			}
+		}
+
+	} else {
+		data_json, _ := json.Marshal(data_map)
+		rec_str := fmt.Sprintf("%s\n", string(data_json))
+		//fmt.Println(rec_str)
+		if _, err := p.writer.WriteString(rec_str); err != nil {
+			fmt.Println("FATAL Error on write" + name)
+			p.writer.Flush()
+		}
+	}
+
 }
 
 func parse(str string, tag string, handle *nmea0183.Handle) error {
