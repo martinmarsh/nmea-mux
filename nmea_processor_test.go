@@ -37,13 +37,21 @@ func TestProcessor(t *testing.T) {
 	m := mockProcess{called: false, name: ""}
 	n.process_device[name] = &m
 	err := n.RunDevice(name, n.devices[name])
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
+	if err != nil {
+		t.Errorf("error returned %s", err)
+	}
+	messages := test_helpers.GetMessages(n.monitor_channel)
+	expected_messages := []string{
+		"Processor main_processor started",
+	}
 
-	n.monitor_channel <- "test"
-	fmt.Println(m, err, n.process_device["main_processor"])
-	mess := test_helpers.GetMessages(n.monitor_channel)
-	fmt.Println(mess, len(mess))
-
+	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, messages); not_found {
+		t.Errorf("Monitor message error %s", err.Error())
+	}
+	if !m.called {
+		t.Error("Failed to call mock runner")
+	}
 }
 
 func TestProcessorConfig(t *testing.T) {
@@ -54,18 +62,44 @@ func TestProcessorConfig(t *testing.T) {
 	m := mockProcess{called: false, name: ""}
 	n.process_device[name] = &m
 	process := &Processor{
-		definitions: make(map[string]sentence_def),
-		every:       make(map[string]int),
-		Nmea:        Sentences.MakeHandle(),
-		log_period:  0,
+		definitions:     make(map[string]sentence_def),
+		every:           make(map[string]int),
+		Nmea:            Sentences.MakeHandle(),
+		monitor_channel: n.monitor_channel,
 	}
-	err := n.nmeaProcessorConfig(name, process)
-	fmt.Println(err)
-	fmt.Println("_______")
+	if err := n.nmeaProcessorConfig(name, process); err != nil {
+		t.Errorf("Processor Config Error %s", err)
+	}
+
 	go process.runner(name)
-	fmt.Println("_______")
+	messages := test_helpers.GetMessages(n.monitor_channel)
+	expected_messages := []string{
+		"Processor main_processor started",
+		"Runner main_processor started- log 1s",
+	}
+
+	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, messages); not_found {
+		t.Errorf("Monitor message error %s", err.Error())
+	}
+
 	go process.makeSentence("compass_out")
-	fmt.Println(process.definitions, err)
-	fmt.Println("_______")
+	fmt.Println(process.definitions["compass_out"])
+	fmt.Println(process.definitions["depth_out"])
+	fmt.Println(process.definitions["gps_out"])
+	
+
+	time.Sleep(2100 * time.Millisecond)
+	messages = test_helpers.GetMessages(n.monitor_channel)
+
+	expected_messages = []string{
+		"Log main_processor waiting for datetime",
+	}
+
+	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, messages); not_found {
+		t.Errorf("Monitor message error %s", err.Error())
+	}
+	if len(messages) != 2 {
+		t.Errorf("Expected 2 log attempts got %d", len(messages))
+	}
 
 }

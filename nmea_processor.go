@@ -41,20 +41,22 @@ type sentence_def struct {
 }
 
 type Processor struct {
-	every       map[string]int
-	definitions map[string]sentence_def
-	Nmea        *nmea0183.Handle
-	log_period  int
-	input       string
-	channels    *map[string](chan string)
-	writer      *bufio.Writer
-	file_closed bool
+	every           map[string]int
+	definitions     map[string]sentence_def
+	Nmea            *nmea0183.Handle
+	log_period      int
+	input           string
+	channels        *map[string](chan string)
+	writer          *bufio.Writer
+	file_closed     bool
+	monitor_channel chan string
 }
 
 func (n *NmeaMux) nmeaProcessorProcess(name string) error {
 	process := &Processor{
-		definitions: make(map[string]sentence_def),
-		every:       make(map[string]int),
+		definitions:     make(map[string]sentence_def),
+		every:           make(map[string]int),
+		monitor_channel: n.monitor_channel,
 	}
 	return n.nmeaProcessorConfig(name, process)
 
@@ -140,6 +142,8 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 	}
 
 	go n.process_device[name].runner(name) //allows mock testing by injection of process_device dependency
+	(n.monitor_channel) <- fmt.Sprintf("Processor %s started", name)
+
 	return nil
 }
 
@@ -222,6 +226,7 @@ func (p *Processor) runner(name string) {
 	for m_name, every := range p.every {
 		countdowns[m_name] = every
 	}
+	(p.monitor_channel) <- fmt.Sprintf("Runner %s started- log %ds", name, p.log_period)
 
 	for {
 		select {
@@ -288,10 +293,12 @@ func (p *Processor) fileLogger(name string) {
 				p.writer = bufio.NewWriter(f)
 				p.file_closed = false
 			} else {
-				fmt.Println("FATAL Error logging: " + name)
+				(p.monitor_channel) <- fmt.Sprintf("Log %s Error on file open: ", name)
 				time.Sleep(time.Minute)
 				p.file_closed = true
 			}
+		} else {
+			(p.monitor_channel) <- fmt.Sprintf("Log %s waiting for datetime : ", name)
 		}
 
 	} else {
@@ -299,7 +306,7 @@ func (p *Processor) fileLogger(name string) {
 		rec_str := fmt.Sprintf("%s\n", string(data_json))
 		//fmt.Println(rec_str)
 		if _, err := p.writer.WriteString(rec_str); err != nil {
-			fmt.Println("FATAL Error on write" + name)
+			(p.monitor_channel) <- fmt.Sprintf("Log %s Error on write: ", name)
 			p.writer.Flush()
 		}
 	}
