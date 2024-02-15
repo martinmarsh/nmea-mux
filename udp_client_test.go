@@ -7,6 +7,7 @@ package nmea_mux
 
 import (
 	"github.com/martinmarsh/nmea-mux/test_data"
+	"github.com/martinmarsh/nmea-mux/test_helpers"
 	"testing"
 	"time"
 )
@@ -65,8 +66,16 @@ func TestUdpClientMockSend(t *testing.T) {
 	n.UdpClientIoDevices["udp_opencpn"] = m
 
 	n.RunDevice("udp_opencpn", n.devices["udp_opencpn"])
-	expected_chan_response_test(n.monitor_channel, "Started udp client udp_opencpn sending messages from to_udp_opencpn", false, t)
-	expected_chan_response_test(n.monitor_channel, "Started Udp client udp_opencpn sending to", false, t)
+	messages := test_helpers.GetMessages(n.monitor_channel)
+	expected_messages := []string{
+		"Started udp client udp_opencpn sending messages from to_udp_opencpn",
+		"Started Udp client udp_opencpn sending to",
+	}
+
+	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, messages); not_found {
+		t.Errorf("Monitor message error %s", err.Error())
+	}
+
 	send := "Writing to a udp client this message"
 	(n.channels["to_udp_opencpn"]) <- send
 	time.Sleep(10 * time.Millisecond)

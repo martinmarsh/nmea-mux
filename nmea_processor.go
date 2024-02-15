@@ -216,7 +216,7 @@ func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name 
 func (p *Processor) runner(name string) {
 	countdowns := make(map[string]int)
 	log_ticker := time.NewTicker(time.Duration(p.log_period) * time.Second)
-	sentence_ticker := time.NewTicker(100 * time.Microsecond)
+	sentence_ticker := time.NewTicker(100 * time.Millisecond)
 	defer log_ticker.Stop()
 	p.file_closed = true
 	for m_name, every := range p.every {
@@ -311,7 +311,7 @@ func parse(str string, tag string, handle *nmea0183.Handle) error {
 	defer func() {
 		if r := recover(); r != nil {
 			str = ""
-			fmt.Println("\n** Recover from NEMEA Panic **")
+			fmt.Println("\n** Recover from NMEA Panic **")
 		}
 	}()
 

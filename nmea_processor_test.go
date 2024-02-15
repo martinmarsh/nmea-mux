@@ -7,11 +7,11 @@ package nmea_mux
 
 import (
 	"fmt"
+	"github.com/martinmarsh/nmea-mux/test_data"
+	"github.com/martinmarsh/nmea-mux/test_helpers"
+	"github.com/martinmarsh/nmea0183"
 	"testing"
 	"time"
-
-	"github.com/martinmarsh/nmea-mux/test_data"
-	"github.com/martinmarsh/nmea0183"
 )
 
 type mockProcess struct {
@@ -23,6 +23,7 @@ func (m *mockProcess) runner(n string) {
 	m.called = true
 	m.name = n
 }
+
 func (m *mockProcess) parse_make_sentence(map[string][]string, string) string {
 	return ""
 }
@@ -37,7 +38,12 @@ func TestProcessor(t *testing.T) {
 	n.process_device[name] = &m
 	err := n.RunDevice(name, n.devices[name])
 	time.Sleep(50 * time.Millisecond)
+
+	n.monitor_channel <- "test"
 	fmt.Println(m, err, n.process_device["main_processor"])
+	mess := test_helpers.GetMessages(n.monitor_channel)
+	fmt.Println(mess, len(mess))
+
 }
 
 func TestProcessorConfig(t *testing.T) {
