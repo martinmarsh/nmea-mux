@@ -83,7 +83,6 @@ func TestProcessorConfig(t *testing.T) {
 		t.Errorf("Monitor message error %s", err.Error())
 	}
 
-	
 	expected_output := []string{
 		"to_udp_opencpn", "to_2000", "to_udp_autohelm",
 	}
@@ -172,17 +171,21 @@ func TestProcessorConfig(t *testing.T) {
 
 	process.Nmea.ParsePrefixVar("$HCHDM,200.5,M", "cp_")
 	process.Nmea.ParsePrefixVar("$HCHDM,100.5,M", "esp_")
-	
-	process.Nmea.Update(map[string]string{"esp_compass_status":"3333"})
-	
-	go process.makeSentence("compass_out")
-	compass_messages:= test_helpers.GetMessages(n.channels["to_2000"])
 
-	if compass_messages[0] != "$HFHDM,200.5,M*2B" {t.Error("wrong compass message")}
-	process.Nmea.Update(map[string]string{"esp_auto":"1"})
+	process.Nmea.Update(map[string]string{"esp_compass_status": "3333"})
 
 	go process.makeSentence("compass_out")
-	compass_messages= test_helpers.GetMessages(n.channels["to_2000"])
-	if compass_messages[0] != "$HFHDM,100.5,M*28" {t.Error("wrong compass message")}
+	compass_messages := test_helpers.GetMessages(n.channels["to_2000"])
+
+	if compass_messages[0] != "$HFHDM,200.5,M*2B" {
+		t.Error("wrong compass message")
+	}
+	process.Nmea.Update(map[string]string{"esp_auto": "1"})
+
+	go process.makeSentence("compass_out")
+	compass_messages = test_helpers.GetMessages(n.channels["to_2000"])
+	if compass_messages[0] != "$HFHDM,100.5,M*28" {
+		t.Error("wrong compass message")
+	}
 
 }
