@@ -177,8 +177,8 @@ func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name 
 				def.conditional = make([]compare, 1)
 				z := strings.Split(val, "==")
 				c := compare{
-					variable: z[0],
-					constant: z[1],
+					variable: strings.TrimSpace(z[0]),
+					constant: strings.TrimSpace(z[1]),
 				}
 				def.conditional[0] = c
 
@@ -201,8 +201,8 @@ func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name 
 
 					z := strings.Split(y, "==")
 					c := compare{
-						variable: z[0],
-						constant: z[1],
+						variable: strings.TrimSpace(z[0]),
+						constant: strings.TrimSpace(z[1]),
 					}
 					def.conditional[i] = c
 				}
@@ -231,7 +231,9 @@ func (p *Processor) runner(name string) {
 	for {
 		select {
 		case str := <-(*p.channels)[p.input]:
-			parse(str, "", p.Nmea)
+			if err := parse(str, "", p.Nmea, p.monitor_channel); err != nil {
+				p.monitor_channel <- fmt.Sprintf("Nmea parsing error %s", err)
+			}
 		case <-log_ticker.C:
 			p.fileLogger(name)
 		case <-sentence_ticker.C:
@@ -313,12 +315,12 @@ func (p *Processor) fileLogger(name string) {
 
 }
 
-func parse(str string, tag string, handle *nmea0183.Handle) error {
+func parse(str string, tag string, handle *nmea0183.Handle, monitor_channel chan string) error {
 
 	defer func() {
 		if r := recover(); r != nil {
 			str = ""
-			fmt.Println("\n** Recover from NMEA Panic **")
+			monitor_channel <- "** Recover from NMEA Panic **"
 		}
 	}()
 
@@ -328,5 +330,6 @@ func parse(str string, tag string, handle *nmea0183.Handle) error {
 		_, _, error := handle.ParsePrefixVar(str, tag)
 		return error
 	}
+
 	return fmt.Errorf("%s", "no leading dollar")
 }

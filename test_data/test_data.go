@@ -157,7 +157,7 @@ gps_out:
     every: 15
     prefix: DP
     use_origin_tag: ray_ 
-    else_origin_tag: gm     
+    else_origin_tag: gm_     
     outputs:
         - to_udp_opencpn
         - to_2000

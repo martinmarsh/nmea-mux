@@ -185,7 +185,6 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 				n.devices[name] = (*NmeaMux).udpListenerProcess
 				n.UdpServerIoDevices[name] = &io.UdpServerDevice{}
 			case "make_sentence":
-				n.devices[name] = (*NmeaMux).makeSentenceProcess
 			case "monitor":
 				n.devices[name] = (*NmeaMux).RunMonitor
 			default:
