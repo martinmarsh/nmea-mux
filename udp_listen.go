@@ -43,15 +43,17 @@ func (n *NmeaMux) udpListener(name string, server io.UdpServer_interfacer, serve
 	defer server.Close()
 
 	for {
-		str, err := server.Read()
+		str, err := server.Read() //should wait until value available but in testing will return immediately
 
 		if err != nil {
 			(n.monitor_channel) <- fmt.Sprintf("Error; Upd_listen; Packet Error; action: ignored, error: %s", err.Error())
 			return
 
 		} else {
-			for _, out := range outputs {
-				(n.channels)[out] <- tag + str
+			if len(str) > 0 {
+				for _, out := range outputs {
+					(n.channels)[out] <- tag + str
+				}
 			}
 		}
 

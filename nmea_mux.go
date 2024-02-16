@@ -51,6 +51,10 @@ type NmeaMux struct {
 // type device func(m *NmeaMux)
 type device func(n *NmeaMux, s string) error
 
+// Creates a new instance of the mux "machine"
+// typically create one and run it for ever so that
+// the PC / Raspberry Pi etc acts as NMEA sentence processor
+// and multiplexer
 func NewMux() *NmeaMux {
 	n := NmeaMux{
 		udp_monitor_active: false,
@@ -72,6 +76,12 @@ func NewMux() *NmeaMux {
 	return &n
 }
 
+// Loads a configuration defining virtual devices, inputs and
+// outputs. Optional parameter strings are required in this order
+// Directory, File Name, format eg yaml (see viper spec) and
+// if 4th parameter is set it is assumed to be a config string
+// used in place of reading from the file. The file definition
+// will be ignored but may be used in future for file creation
 func (n *NmeaMux) LoadConfig(settings ...string) error {
 	configSet := []string{".", "config", "yaml", ""}
 	copy(configSet, settings)
@@ -185,7 +195,6 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 				n.devices[name] = (*NmeaMux).udpListenerProcess
 				n.UdpServerIoDevices[name] = &io.UdpServerDevice{}
 			case "make_sentence":
-				n.devices[name] = (*NmeaMux).makeSentenceProcess
 			case "monitor":
 				n.devices[name] = (*NmeaMux).RunMonitor
 			default:
@@ -209,6 +218,7 @@ func (n *NmeaMux) Monitor(str string, print bool, udp bool) {
 	}
 }
 
+// Runs the config and does not return
 func (n *NmeaMux) Run(settings ...bool) {
 	for name, v := range n.devices {
 		n.RunDevice(name, v)

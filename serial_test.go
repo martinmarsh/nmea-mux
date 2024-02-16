@@ -2,10 +2,12 @@ package nmea_mux
 
 import (
 	"errors"
+	//"fmt"
 	"testing"
 	"time"
 
 	"github.com/martinmarsh/nmea-mux/test_data"
+	"github.com/martinmarsh/nmea-mux/test_helpers"
 )
 
 type mockSerialDevice struct {
@@ -38,7 +40,7 @@ func (s *mockSerialDevice) Read(buff []byte) (int, error) {
 	if s.readError == nil && s.readPointer < l_buff {
 		end := min(s.readPointer+20, l_buff)
 		n = copy(buff, s.readBuff[s.readPointer:end])
-		s.readBuff[n+1] = 0
+		//s.readBuff[n+2] = 0
 		s.readPointer += n
 	}
 	return n, s.readError
@@ -60,9 +62,17 @@ func TestRunSerialFail(t *testing.T) {
 		openError: errors.New("mock test open failed"),
 	}
 	n.RunDevice("compass", n.devices["compass"])
-	expected_chan_response_test(n.monitor_channel, "started navmux serial compass", false, t)
-	expected_chan_response_test(n.monitor_channel, "Serial device compass baud rate set to 4800", false, t)
-	expected_chan_response_test(n.monitor_channel, "Serial device compass <name> == </dev/ttyUSB0> should be a valid port error:", false, t)
+	messages := test_helpers.GetMessages(n.monitor_channel)
+	expected_messages := []string{
+		"started navmux serial compass",
+		"Serial device compass baud rate set to 4800",
+		"Serial device compass <name> == </dev/ttyUSB0> should be a valid port error:",
+	}
+
+	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, messages); not_found {
+		t.Errorf(err.Error())
+	}
+
 }
 
 // The mock works by injecting a mock io object as defined by the interface before calling run device
@@ -78,10 +88,17 @@ func TestRunSerialEOF(t *testing.T) {
 	}
 	n.RunDevice("compass", n.devices["compass"])
 	time.Sleep(500 * time.Millisecond)
-	expected_chan_response_test(n.monitor_channel, "started navmux serial compass", false, t)
-	expected_chan_response_test(n.monitor_channel, "Serial device compass baud rate set to 4800", false, t)
-	expected_chan_response_test(n.monitor_channel, "Open read serial port /dev/ttyUSB0", false, t)
-	expected_chan_response_test(n.monitor_channel, "EOF on read of compass", false, t)
+	messages := test_helpers.GetMessages(n.monitor_channel)
+	expected_messages := []string{
+		"started navmux serial compass",
+		"Serial device compass baud rate set to 4800",
+		"Open read serial port /dev/ttyUSB0",
+		"EOF on read of compass",
+	}
+
+	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, messages); not_found {
+		t.Errorf(err.Error())
+	}
 }
 
 func TestRunSerialReadMessage(t *testing.T) {
@@ -100,23 +117,35 @@ func TestRunSerialReadMessage(t *testing.T) {
 	n.SerialIoDevices["compass"] = m
 	n.RunDevice("compass", n.devices["compass"])
 	time.Sleep(100 * time.Millisecond)
-	expected_chan_response_test(n.monitor_channel, "started navmux serial compass", false, t)
-	expected_chan_response_test(n.monitor_channel, "Serial device compass baud rate set to 4800", false, t)
-	expected_chan_response_test(n.monitor_channel, "Open read serial port /dev/ttyUSB0", false, t)
-	str := ""
-	//loops 9 times because message 5 is split to 2 messages
-	for i := 0; i < 9; i++ {
-		str = <-(n.channels["to_processor"])
-		if i == 5 && str != "@cp_@0 01234567890 01234567890 abcdef" {
-			t.Errorf("Part message wrong got <%s>", str)
-		}
-		if i == 4 {
-			expected_chan_response_test(n.monitor_channel, "Serial read error in compass error No CR in string corrupt o/p = Message 5 very long message", false, t)
-		}
+
+	messages := test_helpers.GetMessages(n.monitor_channel)
+	expected_messages := []string{
+		"started navmux serial compass",
+		"Serial device compass baud rate set to 4800",
+		"Open read serial port /dev/ttyUSB0",
 	}
-	if str != "@cp_@Message 8" {
-		t.Errorf("End message <@cp_@Message 8> expected got <%s>", str)
+
+	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, messages); not_found {
+		t.Errorf("Monitor message error %s", err.Error())
 	}
+
+	to_processor_messages := test_helpers.GetMessages(n.channels["to_processor"])
+
+	expected_messages = []string{
+		"@cp_@Message 1",
+		"@cp_@Message 2",
+		"@cp_@Message 3",
+		"@cp_@Message 4",
+		"@cp_@Message 5 very long message 1234567890 123457890 1234567890 1234567890 1234567890 0123456789",
+		"@cp_@0 01234567890 01234567890 abcdef",
+		"@cp_@Message 6",
+		"@cp_@Message 7",
+		"@cp_@Message 8",
+	}
+	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, to_processor_messages); not_found {
+		t.Errorf("To processor channel error %s", err.Error())
+	}
+
 }
 
 func TestRunSerialReadWriteMessages(t *testing.T) {
@@ -134,17 +163,32 @@ func TestRunSerialReadWriteMessages(t *testing.T) {
 	n.SerialIoDevices["bridge"] = m
 	n.RunDevice("bridge", n.devices["bridge"])
 	time.Sleep(100 * time.Millisecond)
-	expected_chan_response_test(n.monitor_channel, "started navmux serial bridge", false, t)
-	expected_chan_response_test(n.monitor_channel, "Serial device bridge baud rate set to 38400", false, t)
-	expected_chan_response_test(n.monitor_channel, "Open read serial port /dev/ttyUSB1", false, t)
-	str := ""
-	//loops 4 times
-	for i := 0; i < 4; i++ {
-		str = <-(n.channels["to_processor"])
+
+	messages := test_helpers.GetMessages(n.monitor_channel)
+	expected_messages := []string{
+		"started navmux serial bridge",
+		"Serial device bridge baud rate set to 38400",
+		"Open read serial port /dev/ttyUSB1",
+		"Open write serial port /dev/ttyUSB1",
+		"EOF on read of bridge",
 	}
-	if str != "@ray_@Message 4" {
-		t.Errorf("End message <@ray_@Message 4> expected got <%s>", str)
+
+	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, messages); not_found {
+		t.Errorf("Monitor message error %s", err.Error())
 	}
+
+	to_processor_messages := test_helpers.GetMessages(n.channels["to_processor"])
+
+	expected_messages = []string{
+		"@ray_@Message 1",
+		"@ray_@Message 2",
+		"@ray_@Message 3",
+		"@ray_@Message 4",
+	}
+	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, to_processor_messages); not_found {
+		t.Errorf("To processor channel error %s", err.Error())
+	}
+
 	send := "Writing to a serial out this message"
 	(n.channels["to_2000"]) <- send
 	send += "\r\n" //this is auto added on send as it is stripped off by readers
@@ -152,4 +196,5 @@ func TestRunSerialReadWriteMessages(t *testing.T) {
 	if m.writeSent != send {
 		t.Errorf("Should have sent <%s> but got <%s>", send, m.writeSent)
 	}
+
 }

@@ -130,7 +130,7 @@ main_processor:
     type: nmea_processor # Links to any make_sentence types with processor field referring to this processor
     input: to_processor  # NMEA data received will be stored to data base and tagged with origin prefix
                          # if applied by the origin channel
-    log_period: 15   # zero means no log saved
+    log_period: 1    # zero means no log saved
     data_retain: 15  # number of seconds before old records are removed
       
 compass_out:
@@ -157,7 +157,7 @@ gps_out:
     every: 15
     prefix: DP
     use_origin_tag: ray_ 
-    else_origin_tag: gm     
+    else_origin_tag: gm_     
     outputs:
         - to_udp_opencpn
         - to_2000

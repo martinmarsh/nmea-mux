@@ -41,20 +41,22 @@ type sentence_def struct {
 }
 
 type Processor struct {
-	every       map[string]int
-	definitions map[string]sentence_def
-	Nmea        *nmea0183.Handle
-	log_period  int
-	input       string
-	channels    *map[string](chan string)
-	writer      *bufio.Writer
-	file_closed bool
+	every           map[string]int
+	definitions     map[string]sentence_def
+	Nmea            *nmea0183.Handle
+	log_period      int
+	input           string
+	channels        *map[string](chan string)
+	writer          *bufio.Writer
+	file_closed     bool
+	monitor_channel chan string
 }
 
 func (n *NmeaMux) nmeaProcessorProcess(name string) error {
 	process := &Processor{
-		definitions: make(map[string]sentence_def),
-		every:       make(map[string]int),
+		definitions:     make(map[string]sentence_def),
+		every:           make(map[string]int),
+		monitor_channel: n.monitor_channel,
 	}
 	return n.nmeaProcessorConfig(name, process)
 
@@ -140,6 +142,8 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 	}
 
 	go n.process_device[name].runner(name) //allows mock testing by injection of process_device dependency
+	(n.monitor_channel) <- fmt.Sprintf("Processor %s started", name)
+
 	return nil
 }
 
@@ -173,8 +177,8 @@ func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name 
 				def.conditional = make([]compare, 1)
 				z := strings.Split(val, "==")
 				c := compare{
-					variable: z[0],
-					constant: z[1],
+					variable: strings.TrimSpace(z[0]),
+					constant: strings.TrimSpace(z[1]),
 				}
 				def.conditional[0] = c
 
@@ -197,8 +201,8 @@ func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name 
 
 					z := strings.Split(y, "==")
 					c := compare{
-						variable: z[0],
-						constant: z[1],
+						variable: strings.TrimSpace(z[0]),
+						constant: strings.TrimSpace(z[1]),
 					}
 					def.conditional[i] = c
 				}
@@ -216,17 +220,20 @@ func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name 
 func (p *Processor) runner(name string) {
 	countdowns := make(map[string]int)
 	log_ticker := time.NewTicker(time.Duration(p.log_period) * time.Second)
-	sentence_ticker := time.NewTicker(100 * time.Microsecond)
+	sentence_ticker := time.NewTicker(100 * time.Millisecond)
 	defer log_ticker.Stop()
 	p.file_closed = true
 	for m_name, every := range p.every {
 		countdowns[m_name] = every
 	}
+	(p.monitor_channel) <- fmt.Sprintf("Runner %s started- log %ds", name, p.log_period)
 
 	for {
 		select {
 		case str := <-(*p.channels)[p.input]:
-			parse(str, "", p.Nmea)
+			if err := parse(str, "", p.Nmea, p.monitor_channel); err != nil {
+				p.monitor_channel <- fmt.Sprintf("Nmea parsing error %s", err)
+			}
 		case <-log_ticker.C:
 			p.fileLogger(name)
 		case <-sentence_ticker.C:
@@ -288,10 +295,12 @@ func (p *Processor) fileLogger(name string) {
 				p.writer = bufio.NewWriter(f)
 				p.file_closed = false
 			} else {
-				fmt.Println("FATAL Error logging: " + name)
+				(p.monitor_channel) <- fmt.Sprintf("Log %s Error on file open: ", name)
 				time.Sleep(time.Minute)
 				p.file_closed = true
 			}
+		} else {
+			(p.monitor_channel) <- fmt.Sprintf("Log %s waiting for datetime : ", name)
 		}
 
 	} else {
@@ -299,19 +308,19 @@ func (p *Processor) fileLogger(name string) {
 		rec_str := fmt.Sprintf("%s\n", string(data_json))
 		//fmt.Println(rec_str)
 		if _, err := p.writer.WriteString(rec_str); err != nil {
-			fmt.Println("FATAL Error on write" + name)
+			(p.monitor_channel) <- fmt.Sprintf("Log %s Error on write: ", name)
 			p.writer.Flush()
 		}
 	}
 
 }
 
-func parse(str string, tag string, handle *nmea0183.Handle) error {
+func parse(str string, tag string, handle *nmea0183.Handle, monitor_channel chan string) error {
 
 	defer func() {
 		if r := recover(); r != nil {
 			str = ""
-			fmt.Println("\n** Recover from NEMEA Panic **")
+			monitor_channel <- "** Recover from NMEA Panic **"
 		}
 	}()
 
@@ -321,5 +330,6 @@ func parse(str string, tag string, handle *nmea0183.Handle) error {
 		_, _, error := handle.ParsePrefixVar(str, tag)
 		return error
 	}
+
 	return fmt.Errorf("%s", "no leading dollar")
 }

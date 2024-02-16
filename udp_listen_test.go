@@ -6,10 +6,10 @@ Licensed under the Apache License, Version 2.0 (the "License");
 package nmea_mux
 
 import (
+	"github.com/martinmarsh/nmea-mux/test_data"
+	"github.com/martinmarsh/nmea-mux/test_helpers"
 	"testing"
 	"time"
-
-	"github.com/martinmarsh/nmea-mux/test_data"
 )
 
 type mockUdpServerDevice struct {
@@ -30,7 +30,12 @@ func (m *mockUdpServerDevice) Close() error {
 }
 
 func (m *mockUdpServerDevice) Read() (string, error) {
-	return m.sent, m.read_error
+	if len(m.sent) == 0 {
+		time.Sleep(100 * time.Microsecond)
+	}
+	ret := m.sent
+	m.sent = ""
+	return ret, m.read_error
 }
 
 /* Using the real UPD output for integration test
@@ -60,11 +65,20 @@ func TestUdpServerMockReceive(t *testing.T) {
 	n.UdpServerIoDevices[name] = m
 	n.RunDevice(name, n.devices[name])
 	time.Sleep(1000 * time.Millisecond)
-	expected_chan_response_test(n.monitor_channel, "Started Upd_listen; name: udp_compass_listen  Port: 8006 channels:  to_processor", false, t)
 
-	str := <-(n.channels["to_processor"])
+	messages := test_helpers.GetMessages(n.monitor_channel)
+	expected_messages := []string{
+		"Started Upd_listen; name: udp_compass_listen  Port: 8006 channels:  to_processor",
+	}
+
+	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, messages); not_found {
+		t.Errorf("Monitor message error %s", err.Error())
+	}
+
+	str := test_helpers.GetMessages(n.channels["to_processor"])
+
 	message = "@esp_@" + message
-	if message != str {
-		t.Errorf("Should have sent <%s> but got <%s>", message, str)
+	if message != str[0] {
+		t.Errorf("Should have sent <%s> but got <%s>", message, str[0])
 	}
 }
