@@ -9,9 +9,11 @@ package nmea_mux
 
 import (
 	"fmt"
+	"strings"
+	//"time"
+
 	"github.com/martinmarsh/nmea-mux/io"
 	"github.com/spf13/viper"
-	"strings"
 )
 
 type MuxInterfacer interface {
@@ -59,7 +61,7 @@ type device func(n *NmeaMux, s string) error
 // and multiplexer
 func NewMux() *NmeaMux {
 	n := NmeaMux{
-		monitor_channel:    make(chan string, 5),
+		monitor_channel:    make(chan string, 1),
 		stop_channel:       make(chan string, 1),
 		udp_monitor_active: false,
 		monitor_active:     false,
@@ -229,20 +231,30 @@ func (n *NmeaMux) WaitToStop() {
 }
 
 // Runs the config and does not return
-func (n *NmeaMux) Run(settings ...bool) {
-
-	if len(settings) == 0 || settings[0] {
-		if _, found := n.config.TypeList["monitor"]; !found {
-			go n.RunMonitor("main_monitor")
-		}
-	}
+func (n *NmeaMux) Run() {
 	for name, v := range n.devices {
 		n.RunDevice(name, v)
 	}
 
 }
 
+func (n *NmeaMux) monitor_start() {
+	if !n.monitor_active {
+		if _, found := n.config.TypeList["monitor"]; found {
+			name := n.config.TypeList["monitor"][0]
+			fmt.Println(name)
+			fmt.Println(n.devices[name])
+		
+			n.devices[name](n, name)
+		} else {
+			n.RunMonitor("main_monitor")
+		}
+		//time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func (n *NmeaMux) RunDevice(name string, device_method device) error {
+	n.monitor_start()
 	return device_method(n, name) // runs  func (n *NmeaMux) device_method (name) note unexpected parameter order go expects
 }
 
@@ -250,14 +262,16 @@ func (n *NmeaMux) RunDevice(name string, device_method device) error {
 func (n *NmeaMux) RunMonitor(name string) error {
 	//config := n.config.Values[name]
 	//config may not exist
-	if config, found := n.config.Values[name]; found {
-		fmt.Println(config)
-		fmt.Println("monitor started")
+	if !n.monitor_active {
+		n.monitor_active = true
+		go n.backgroundMonitor()
 	}
+	return nil
+}
 
+func (n *NmeaMux) backgroundMonitor() {
 	for {
 		str := <-n.monitor_channel
 		n.Monitor(str, true, true)
 	}
-
 }
