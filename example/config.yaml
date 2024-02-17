@@ -1,0 +1,14 @@
+
+udp_compass_listen:
+    type:  udp_listen
+    origin_tag: esp_
+    outputs:
+        - to_udp_opencpn
+    port: 8006
+
+
+udp_opencpn:
+    type:  udp_client
+    input: to_udp_opencpn
+    server_address: 192.168.1.14:8011
+

@@ -36,20 +36,29 @@ devices can send messages on multiple channels.  To avoid creating unnecessary i
 
 ## Quick start
 
-```
+``` go 
+package main
 
 import (
     "github.com/martinmarsh/nmea-mux"
 )
 
-n := nmea-mux.NewMux()
+func main() {
+    n := nmea_mux.NewMux()
 
-n.LoadConfig()  # for default config.yaml in current folder
-                # optional parameters define folder, filename, format, "config as a string
+    // for default config.yaml in current folder
+    // optional parameters define folder, filename, format, "config as a string
+    if err := n.LoadConfig(); err == nil {
+        n.Run()        // Run the virtual devices / go tasks
+        n.WaitToStop() // Wait for ever?
 
-n.Run()         # The file and processed run forever
-                # and don't return
+    }
+
+}
 
 
-``
-Look at tests and test_data for more advance use
+```
+
+Look at tests and example folder for more advance use
+To avoid most system issues the example uses only udp and needs network parameters setting
+Serial devices will require correct config for your PC. A USB to serial device is recommended

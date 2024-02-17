@@ -38,7 +38,9 @@ type configData struct {
 type NmeaMux struct {
 	config             *configData
 	udp_monitor_active bool
+	monitor_active     bool
 	monitor_channel    chan string
+	stop_channel       chan string
 	channels           map[string](chan string)
 	devices            map[string](device)
 	SerialIoDevices    map[string](io.Serial_interfacer)
@@ -57,8 +59,10 @@ type device func(n *NmeaMux, s string) error
 // and multiplexer
 func NewMux() *NmeaMux {
 	n := NmeaMux{
-		udp_monitor_active: false,
 		monitor_channel:    make(chan string, 5),
+		stop_channel:       make(chan string, 1),
+		udp_monitor_active: false,
+		monitor_active:     false,
 		channels:           make(map[string](chan string)),
 		devices:            make(map[string](device)),
 		SerialIoDevices:    make(map[string](io.Serial_interfacer)),
@@ -90,6 +94,7 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 	viper.SetConfigName(configSet[1]) // name of config file (without extension)
 	viper.SetConfigType(configSet[2]) // REQUIRED if the config file does not have the extension in the name
 	var err error = nil
+	err_str := ""
 
 	if configSet[3] == "" {
 		err = viper.ReadInConfig() // Find and read the config file
@@ -156,7 +161,6 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 		}
 	}
 
-	err_str := ""
 	for channel := range n.config.InChannelList {
 		if n.config.OutChannelList[channel] == nil {
 			err_str += channel + ","
@@ -175,7 +179,7 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 	}
 
 	if err_str != "" {
-		err = fmt.Errorf("input channels and output channels must be wired together: check these channels %s", err_str)
+		err_str = fmt.Sprintf("input channels and output channels must be wired together: check these channels %s -", err_str)
 	}
 
 	for processType, names := range n.config.TypeList {
@@ -198,12 +202,13 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 			case "monitor":
 				n.devices[name] = (*NmeaMux).RunMonitor
 			default:
-				err = fmt.Errorf("unknown device found: %s", processType)
+				err_str = fmt.Sprintf("%sUnknown device found: %s -", err_str, processType)
 			}
-			if err != nil {
-				break
-			}
+
 		}
+	}
+	if err_str != "" {
+		err = fmt.Errorf("config errors found: %s", err_str)
 	}
 
 	return err
@@ -218,27 +223,36 @@ func (n *NmeaMux) Monitor(str string, print bool, udp bool) {
 	}
 }
 
+func (n *NmeaMux) WaitToStop() {
+	//run forever
+	<-n.stop_channel
+}
+
 // Runs the config and does not return
 func (n *NmeaMux) Run(settings ...bool) {
-	for name, v := range n.devices {
-		n.RunDevice(name, v)
-	}
+
 	if len(settings) == 0 || settings[0] {
 		if _, found := n.config.TypeList["monitor"]; !found {
 			go n.RunMonitor("main_monitor")
 		}
 	}
+	for name, v := range n.devices {
+		n.RunDevice(name, v)
+	}
+
 }
 
 func (n *NmeaMux) RunDevice(name string, device_method device) error {
 	return device_method(n, name) // runs  func (n *NmeaMux) device_method (name) note unexpected parameter order go expects
 }
 
+// Must be started before run
 func (n *NmeaMux) RunMonitor(name string) error {
 	//config := n.config.Values[name]
 	//config may not exist
 	if config, found := n.config.Values[name]; found {
 		fmt.Println(config)
+		fmt.Println("monitor started")
 	}
 
 	for {
