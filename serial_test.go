@@ -61,6 +61,7 @@ func TestRunSerialFail(t *testing.T) {
 	n.SerialIoDevices["compass"] = &mockSerialDevice{
 		openError: errors.New("mock test open failed"),
 	}
+	n.monitor_active = true
 	n.RunDevice("compass", n.devices["compass"])
 	messages := test_helpers.GetMessages(n.monitor_channel)
 	expected_messages := []string{
@@ -86,6 +87,7 @@ func TestRunSerialEOF(t *testing.T) {
 		readBuff:  []byte(""),
 		writeBuff: []byte(""),
 	}
+	n.monitor_active = true
 	n.RunDevice("compass", n.devices["compass"])
 	time.Sleep(500 * time.Millisecond)
 	messages := test_helpers.GetMessages(n.monitor_channel)
@@ -114,6 +116,7 @@ func TestRunSerialReadMessage(t *testing.T) {
 		readBuff:  []byte(message),
 		writeBuff: []byte(""),
 	}
+	n.monitor_active = true
 	n.SerialIoDevices["compass"] = m
 	n.RunDevice("compass", n.devices["compass"])
 	time.Sleep(100 * time.Millisecond)
@@ -161,6 +164,7 @@ func TestRunSerialReadWriteMessages(t *testing.T) {
 		writeBuff:  []byte(""),
 	}
 	n.SerialIoDevices["bridge"] = m
+	n.monitor_active = true
 	n.RunDevice("bridge", n.devices["bridge"])
 	time.Sleep(100 * time.Millisecond)
 

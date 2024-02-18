@@ -46,7 +46,8 @@ func (s *SerialDevice) Write(buff []byte) (int, error) {
 }
 
 type UdpClientDevice struct {
-	conn *net.UDPConn
+	conn          *net.UDPConn
+	remoteAddress *net.UDPAddr
 }
 
 type UdpServerDevice struct {
@@ -71,8 +72,14 @@ type UdpServer_interfacer interface {
 
 func (u *UdpClientDevice) Open(server_address string) error {
 	var err error = nil
-	RemoteAddr, _ := net.ResolveUDPAddr("udp", server_address)
-	u.conn, err = net.DialUDP("udp", nil, RemoteAddr)
+	u.remoteAddress = nil
+	u.conn = nil
+	if RemoteAddr, err_addr := net.ResolveUDPAddr("udp", server_address); err_addr == nil {
+		u.remoteAddress = RemoteAddr
+		u.conn, err = net.DialUDP("udp", nil, u.remoteAddress)
+	} else {
+		err = err_addr
+	}
 	return err
 }
 
@@ -81,11 +88,18 @@ func (u *UdpClientDevice) Close() error {
 }
 
 func (u *UdpClientDevice) LocalAddr() string {
-	return u.conn.LocalAddr().String()
+	if u.conn != nil {
+		return u.conn.LocalAddr().String()
+	}
+	return ""
 }
 
 func (u *UdpClientDevice) RemoteAddr() string {
-	return u.conn.RemoteAddr().String()
+	ret := ""
+	if addr := u.remoteAddress; addr != nil {
+		ret = addr.String()
+	}
+	return ret
 }
 
 func (u *UdpClientDevice) Write(s string) (int, error) {

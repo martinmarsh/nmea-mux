@@ -11,6 +11,7 @@ import (
 )
 
 func (n *NmeaMux) mockProcess(name string) error {
+	n.monitor_active = true
 	(n.monitor_channel) <- fmt.Sprintf("Mock Process called with %s", name)
 	return nil
 }
@@ -72,7 +73,7 @@ func TestConfigBad(t *testing.T) {
 func TestConfigMoreInputs(t *testing.T) {
 	n := NewMux()
 	err := n.LoadConfig("./test_data/", "config_more_inputs", "yaml", test_data.Bad_more_inputs_config)
-	message := "input channels and output channels must be wired together: check these channels"
+	message := "config errors found: input channels and output channels must be wired together: check these channels"
 	if test_helpers.UnexpectedErrorMessage(message, err) {
 		t.Errorf("Config. Wrong error message on config channel matching: %s", err)
 	}
@@ -81,7 +82,7 @@ func TestConfigMoreInputs(t *testing.T) {
 func TestConfigMoreOutputs(t *testing.T) {
 	n := NewMux()
 	err := n.LoadConfig("./test_data/", "config_more_outputs", "yaml", test_data.Bad_more_outputs_config)
-	message := "input channels and output channels must be wired together: check these channels"
+	message := "config errors found: input channels and output channels must be wired together: check these channels"
 	if test_helpers.UnexpectedErrorMessage(message, err) {
 		t.Errorf("Config. Wrong error message on config channel matching: %s", err)
 	}
@@ -90,7 +91,7 @@ func TestConfigMoreOutputs(t *testing.T) {
 func TestConfigUnknownType(t *testing.T) {
 	n := NewMux()
 	err := n.LoadConfig("./test_data/", "config_more_outputs", "yaml", test_data.Unknown_device_config)
-	message := "unknown device found: test_unknown_type"
+	message := "config errors found: input channels and output channels must be wired together: check these channels to_processor, -Unknown device found: test_unknown_type -"
 	if test_helpers.UnexpectedErrorMessage(message, err) {
 		t.Errorf("Config. Wrong error message on config unknown type: %s", err)
 	}
@@ -127,6 +128,7 @@ func TestRunDevices(t *testing.T) {
 	n := NewMux()
 	n.LoadConfig("./test_data/", "config", "yaml", test_data.Good_config)
 	n.devices = make(map[string](device))
+	n.monitor_active = true
 	n.devices["test1"] = (*NmeaMux).mockProcess
 	n.devices["test2"] = (*NmeaMux).mockProcess
 	n.Run()

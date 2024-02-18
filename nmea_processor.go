@@ -23,6 +23,7 @@ type ProcessInterfacer interface {
 	runner(string)
 	fileLogger(string)
 	makeSentence(name string)
+	newProcessor() *Processor
 }
 
 type compare struct {
@@ -53,13 +54,8 @@ type Processor struct {
 }
 
 func (n *NmeaMux) nmeaProcessorProcess(name string) error {
-	process := &Processor{
-		definitions:     make(map[string]sentence_def),
-		every:           make(map[string]int),
-		monitor_channel: n.monitor_channel,
-	}
+	process := n.newProcessor()
 	return n.nmeaProcessorConfig(name, process)
-
 }
 
 func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
@@ -141,7 +137,7 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 		return fmt.Errorf("Processor %s/make sentence has these errors:%s", name, error_str)
 	}
 
-	go n.process_device[name].runner(name) //allows mock testing by injection of process_device dependency
+	go process.runner(name) //allows mock testing by injection of process_device dependency
 	(n.monitor_channel) <- fmt.Sprintf("Processor %s started", name)
 
 	return nil
@@ -217,11 +213,27 @@ func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name 
 	return error_str
 }
 
+func (n *NmeaMux) newProcessor() *Processor {
+	return &Processor{
+		definitions:     make(map[string]sentence_def),
+		every:           make(map[string]int),
+		monitor_channel: n.monitor_channel,
+	}
+}
+
 func (p *Processor) runner(name string) {
 	countdowns := make(map[string]int)
-	log_ticker := time.NewTicker(time.Duration(p.log_period) * time.Second)
+	log_ticker := time.NewTicker(10 * time.Second)
+	if p.log_period > 0 {
+		log_ticker = time.NewTicker(time.Duration(p.log_period) * time.Second)
+		defer log_ticker.Stop()
+	} else {
+		log_ticker.Stop()
+	}
+
 	sentence_ticker := time.NewTicker(100 * time.Millisecond)
-	defer log_ticker.Stop()
+
+	defer sentence_ticker.Stop()
 	p.file_closed = true
 	for m_name, every := range p.every {
 		countdowns[m_name] = every

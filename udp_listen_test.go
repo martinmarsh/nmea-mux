@@ -62,6 +62,7 @@ func TestUdpServerMockReceive(t *testing.T) {
 		read_error: nil,
 		sent:       message,
 	}
+	n.monitor_active = true
 	n.UdpServerIoDevices[name] = m
 	n.RunDevice(name, n.devices[name])
 	time.Sleep(1000 * time.Millisecond)
