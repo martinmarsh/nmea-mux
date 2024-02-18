@@ -60,7 +60,7 @@ type device func(n *NmeaMux, s string) error
 // and multiplexer
 func NewMux() *NmeaMux {
 	n := NmeaMux{
-		monitor_channel:    make(chan string, 1),
+		monitor_channel:    make(chan string, 10),
 		stop_channel:       make(chan string, 1),
 		udp_monitor_active: false,
 		monitor_active:     false,
@@ -240,8 +240,6 @@ func (n *NmeaMux) monitor_start() {
 	if !n.monitor_active {
 		if _, found := n.config.TypeList["monitor"]; found {
 			name := n.config.TypeList["monitor"][0]
-			fmt.Println(name)
-			fmt.Println(n.devices[name])
 			if mon, found := n.devices[name]; found {
 				mon(n, name)
 			} else {

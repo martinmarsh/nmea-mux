@@ -124,8 +124,6 @@ func TestMonitorUdp(t *testing.T) {
 	}
 }
 
-/*
-For some reason run does not return
 func TestRunDevices(t *testing.T) {
 	n := NewMux()
 	n.LoadConfig("./test_data/", "config", "yaml", test_data.Good_config)
@@ -145,4 +143,3 @@ func TestRunDevices(t *testing.T) {
 		t.Errorf("Monitor message error %s", err.Error())
 	}
 }
-*/

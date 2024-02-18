@@ -1,13 +1,13 @@
 package nmea_mux
 
 import (
-	//"errors"
+	"errors"
 	//"fmt"
-	//"testing"
-	//"time"
+	"testing"
+	"time"
 
-	//"github.com/martinmarsh/nmea-mux/test_data"
-	//"github.com/martinmarsh/nmea-mux/test_helpers"
+	"github.com/martinmarsh/nmea-mux/test_data"
+	"github.com/martinmarsh/nmea-mux/test_helpers"
 )
 
 type mockSerialDevice struct {
@@ -55,7 +55,6 @@ func (s *mockSerialDevice) Write(buff []byte) (int, error) {
 	return n, s.writeError
 }
 
-/*
 func TestRunSerialFail(t *testing.T) {
 	n := NewMux()
 	n.LoadConfig("./test_data/", "config", "yaml", test_data.Good_config)
@@ -203,4 +202,3 @@ func TestRunSerialReadWriteMessages(t *testing.T) {
 	}
 
 }
-*/
