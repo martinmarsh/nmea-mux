@@ -1,5 +1,6 @@
 monitor:
     type: monitor
+    server_address: 192.168.1.166:8011
 
 udp_compass_listen:
     type:  udp_listen
@@ -38,7 +39,7 @@ gps_out:
     every: 15
     prefix: DP
     use_origin_tag: ray_ 
-    else_origin_tag: gm_     C
+    else_origin_tag: gm_ 
     outputs:
         - to_udp_opencpn
 
@@ -57,9 +58,9 @@ depth_out:
 udp_opencpn:
     type:  udp_client
     input: to_udp_opencpn
-    server_address: 192.168.1.14:8011
+    server_address: 192.168.1.166:8012
 
 udp_autohelm:
     type:  udp_client
     input: to_udp_autohelm
-    server_address: 127.0.0.1:8007
+    server_address: 192.168.1.166:8010

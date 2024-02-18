@@ -68,7 +68,7 @@ func TestUdpClientMockSend(t *testing.T) {
 	n.RunDevice("udp_opencpn", n.devices["udp_opencpn"])
 	messages := test_helpers.GetMessages(n.monitor_channel)
 	expected_messages := []string{
-		"Started udp client udp_opencpn sending messages from to_udp_opencpn",
+		"Started Udp client udp_opencpn sending to 192.168.1.14:8011 from 127.0.0.1:8000",
 		"Started Udp client udp_opencpn sending to",
 	}
 

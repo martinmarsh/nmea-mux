@@ -9,17 +9,17 @@ package nmea_mux
 
 import (
 	"fmt"
-	"strings"
-	//"time"
-
 	"github.com/martinmarsh/nmea-mux/io"
 	"github.com/spf13/viper"
+	"strings"
+	"time"
 )
 
 type MuxInterfacer interface {
 	LoadConfig(...string) error
 	Monitor(string, bool, bool)
-	Run(...bool)
+	Run() error
+
 	RunDevice(string, device) error
 	RunMonitor(string)
 	serialProcess(string) error
@@ -48,7 +48,6 @@ type NmeaMux struct {
 	SerialIoDevices    map[string](io.Serial_interfacer)
 	UdpClientIoDevices map[string](io.UdpClient_interfacer)
 	UdpServerIoDevices map[string](io.UdpServer_interfacer)
-	process_device     map[string](ProcessInterfacer)
 }
 
 // A device is the top level item in the mux config
@@ -70,7 +69,6 @@ func NewMux() *NmeaMux {
 		SerialIoDevices:    make(map[string](io.Serial_interfacer)),
 		UdpClientIoDevices: make(map[string](io.UdpClient_interfacer)),
 		UdpServerIoDevices: make(map[string](io.UdpServer_interfacer)),
-		process_device:     make(map[string](ProcessInterfacer)),
 		config: &configData{
 			Index:          make(map[string]([]string)),
 			TypeList:       make(map[string]([]string)),
@@ -196,7 +194,7 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 				n.UdpClientIoDevices[name] = &io.UdpClientDevice{}
 			case "nmea_processor":
 				n.devices[name] = (*NmeaMux).nmeaProcessorProcess
-				n.process_device[name] = &Processor{}
+				//n.process_device[name] = &Processor{}
 			case "udp_listen":
 				n.devices[name] = (*NmeaMux).udpListenerProcess
 				n.UdpServerIoDevices[name] = &io.UdpServerDevice{}
@@ -230,12 +228,12 @@ func (n *NmeaMux) WaitToStop() {
 	<-n.stop_channel
 }
 
-// Runs the config and does not return
-func (n *NmeaMux) Run() {
+// Runs the config devices
+func (n *NmeaMux) Run() error {
 	for name, v := range n.devices {
 		n.RunDevice(name, v)
 	}
-
+	return nil
 }
 
 func (n *NmeaMux) monitor_start() {
@@ -244,12 +242,15 @@ func (n *NmeaMux) monitor_start() {
 			name := n.config.TypeList["monitor"][0]
 			fmt.Println(name)
 			fmt.Println(n.devices[name])
-		
-			n.devices[name](n, name)
+			if mon, found := n.devices[name]; found {
+				mon(n, name)
+			} else {
+				n.RunMonitor("main_monitor")
+			}
+
 		} else {
 			n.RunMonitor("main_monitor")
 		}
-		//time.Sleep(10 * time.Millisecond)
 	}
 }
 
@@ -265,6 +266,7 @@ func (n *NmeaMux) RunMonitor(name string) error {
 	if !n.monitor_active {
 		n.monitor_active = true
 		go n.backgroundMonitor()
+		time.Sleep(100 * time.Millisecond)
 	}
 	return nil
 }
