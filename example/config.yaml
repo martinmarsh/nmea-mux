@@ -1,13 +1,14 @@
 monitor:
     type: monitor
-    server_address: 192.168.1.166:8011
+    server_address: 192.168.1.166:8014
 
 udp_compass_listen:
     type:  udp_listen
     origin_tag: esp_
     outputs:
         - to_processor
-    port: 8006
+        - to_udp_autohelm
+    port: 8005
 
 main_processor:
     type: nmea_processor # Links to any make_sentence types with processor field referring to this processor
@@ -58,7 +59,7 @@ depth_out:
 udp_opencpn:
     type:  udp_client
     input: to_udp_opencpn
-    server_address: 192.168.1.166:8012
+    server_address: 192.168.1.27:8011
 
 udp_autohelm:
     type:  udp_client
