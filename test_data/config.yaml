@@ -45,14 +45,13 @@ main_processor:
                          # if applied by the origin channel
     log_period: 15   # zero means no log saved
     data_retain: 15  # number of seconds before old records are removed
-    outputs:
-        - to_compass_out
-        - to_gps_out
-        - to_depth_out
+    datetime_tags:
+        - ray_
+        - gm_
       
 compass_out:
     type: make_sentence
-    input: to_compass_out
+    processor: main_processor
     sentence: hdm
                     # Write a hdm message from stored data
     every: 200      # 200ms is minimum period between sends
@@ -69,7 +68,7 @@ compass_out:
     
 gps_out:
     type: make_sentence
-    input: to_gps_out
+    processor: main_processor
     sentence: rms
     every: 1500
     prefix: DP
@@ -81,7 +80,7 @@ gps_out:
     
 depth_out:
     type: make_sentence
-    input: to_depth_out
+    processor: main_processor
     sentence: dpt
     every: 1000
     prefix: SD

@@ -2,6 +2,17 @@ monitor:
     type: monitor
     server_address: 192.168.1.166:8014
 
+
+bridge:
+    name: /dev/ttyUSB1
+    type: serial
+    origin_tag: ray_
+    baud: 38400
+    input: to_2000
+    outputs:
+      - to_processor
+      - to_udp_opencpn
+
 udp_compass_listen:
     type:  udp_listen
     origin_tag: esp_
@@ -16,6 +27,9 @@ main_processor:
                          # if applied by the origin channel
     log_period: 15    # zero means no log saved
     data_retain: 15  # number of seconds before old records are removed
+    datetime_tags:
+        - ray_
+        - gm_
       
 compass_out:
     type: make_sentence
@@ -32,29 +46,18 @@ compass_out:
     outputs:
     - to_udp_opencpn
     - to_udp_autohelm
+    - to_2000
     
 gps_out:
     type: make_sentence
     processor: main_processor
     sentence: rms
     every: 15
-    prefix: DP
+    prefix: GP
     use_origin_tag: ray_ 
     else_origin_tag: gm_ 
     outputs:
         - to_udp_opencpn
-
-    
-depth_out:
-    type: make_sentence
-    processor: main_processor
-    sentence: dpt
-    every: 10
-    prefix: SD
-    use_origin_tag: ray_ 
-    outputs:
-        - to_udp_opencpn
-
 
 udp_opencpn:
     type:  udp_client

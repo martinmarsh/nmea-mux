@@ -275,3 +275,16 @@ func (n *NmeaMux) backgroundMonitor() {
 		n.Monitor(str, true, true)
 	}
 }
+
+func trim_tag(str string) (string, string) {
+	str = strings.TrimSpace(str)
+	if len(str) > 5 && str[0] == '@' {
+		str1 := strings.SplitN(str[1:], "@", 2)
+		if len(str1) == 2 {
+			return str1[0], str1[1]
+		} else {
+			return "", str[1:]
+		}
+	}
+	return "", str
+}

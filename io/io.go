@@ -13,7 +13,7 @@ import (
 type Serial_interfacer interface {
 	SetMode(int, string) error
 	Open() error
-	Read([]byte) (int, error)
+	Read(*[]byte) (int, error)
 	Write([]byte) (int, error)
 }
 
@@ -38,9 +38,10 @@ func (s *SerialDevice) Open() error {
 	return err
 }
 
-func (s *SerialDevice) Read(buff []byte) (int, error) {
-	return s.port.Read(buff)
+func (s *SerialDevice) Read(buff *[]byte) (int, error) {
+	return s.port.Read(*buff)
 }
+
 func (s *SerialDevice) Write(buff []byte) (int, error) {
 	return s.port.Write(buff)
 }

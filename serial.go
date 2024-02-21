@@ -71,7 +71,7 @@ func serialReader(name string, ser io.Serial_interfacer, outputs []string, tag s
 	cb := MakeByteBuffer(400, 92)
 	time.Sleep(100 * time.Millisecond)
 	for {
-		n, err := ser.Read(buff)
+		n, err := ser.Read(&buff)
 		if err != nil {
 			(monitor_channel) <- fmt.Sprintf("FATAL Error on port %s", name)
 			time.Sleep(5 * time.Second)
@@ -109,6 +109,7 @@ func serialWriter(name string, ser io.Serial_interfacer, input string, monitor_c
 	time.Sleep(100 * time.Millisecond)
 	for {
 		str := <-(*channels)[input]
+		_, str = trim_tag(str)
 		str += "\r\n"
 		_, err := ser.Write([]byte(str))
 		if err != nil {

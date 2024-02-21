@@ -34,12 +34,12 @@ func (s *mockSerialDevice) Open() error {
 	return s.openError
 }
 
-func (s *mockSerialDevice) Read(buff []byte) (int, error) {
+func (s *mockSerialDevice) Read(buff *[]byte) (int, error) {
 	l_buff := len(s.readBuff)
 	n := 0
 	if s.readError == nil && s.readPointer < l_buff {
 		end := min(s.readPointer+20, l_buff)
-		n = copy(buff, s.readBuff[s.readPointer:end])
+		n = copy(*buff, s.readBuff[s.readPointer:end])
 		//s.readBuff[n+2] = 0
 		s.readPointer += n
 	}

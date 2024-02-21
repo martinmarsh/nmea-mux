@@ -60,6 +60,7 @@ func udpWriter(name string, Udp io.UdpClient_interfacer, server_addr string, inp
 
 	for {
 		str := <-(*channels)[input]
+		_, str = trim_tag(str)
 		_, err := Udp.Write(str)
 		if err != nil {
 			(monitor_channel) <- fmt.Sprintf("Udp %s Write error: %s", name, err)

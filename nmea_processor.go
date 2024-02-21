@@ -354,17 +354,17 @@ func parse(str string, handle *nmea0183.Handle, monitor_channel chan string) err
 		}
 	}()
 
-	str = strings.TrimSpace(str)
-	if len(str) > 5 && str[0] == '@' {
-		str1 := strings.Split(str[1:], "@")
-		tag = str1[0]
-		str = str1[1]
-	}
+	tag, str = trim_tag(str)
+
 	if len(str) > 5 && len(str) < 89 && str[0] == '$' {
 		// fmt.Printf("counter is %d\n", count)
 		_, _, error := handle.ParsePrefixVar(str, tag)
 		return error
 	}
+	//ignore sentences starting with "!"
+	if len(str) > 5 && len(str) < 89 && str[0] == '!' {
+		return nil
+	}
 
-	return fmt.Errorf("%s", "no leading dollar")
+	return fmt.Errorf("no leading dollar tagged: %s in %s", tag, str)
 }
