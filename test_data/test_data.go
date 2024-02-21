@@ -132,6 +132,10 @@ main_processor:
                          # if applied by the origin channel
     log_period: 1    # zero means no log saved
     data_retain: 15  # number of seconds before old records are removed
+    datetime_tags:
+        - ray_
+        - gm_
+
       
 compass_out:
     type: make_sentence

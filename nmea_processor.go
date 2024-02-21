@@ -46,6 +46,7 @@ type Processor struct {
 	definitions     map[string]sentence_def
 	Nmea            *nmea0183.Handle
 	log_period      int
+	date_time_var   []string
 	input           string
 	channels        *map[string](chan string)
 	writer          *bufio.Writer
@@ -82,6 +83,15 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 		} else {
 			error_str += "Log period setting must not be a list;"
 		}
+	}
+
+	if date_tags, found := config["datetime_tags"]; found {
+		l := len(date_tags)
+		process.date_time_var = make([]string, l+1)
+		for i, v := range date_tags {
+			process.date_time_var[i] = fmt.Sprintf("%sdatetime", v)
+		}
+		process.date_time_var = append(process.date_time_var, "datetime")
 	}
 
 	if err := Sentences.Load(); err != nil {
@@ -300,9 +310,16 @@ func (p *Processor) fileLogger(name string) {
 	data_map := p.Nmea.GetMap()
 
 	if p.file_closed {
-		if dt, ok := data_map["datetime"]; ok {
-			dt = strings.Replace(dt[:16], ":", "_", -1)
-			file_name := fmt.Sprintf("ships_log_%s.txt", dt)
+		file_name := ""
+		for _, date_var := range p.date_time_var {
+			if dt, ok := data_map[date_var]; ok {
+				dt = strings.Replace(dt[:16], ":", "_", -1)
+				file_name = fmt.Sprintf("ships_log_%s.txt", dt)
+				break
+			}
+		}
+
+		if len(file_name) > 0 {
 			if f, err := os.Create(file_name); err == nil {
 				p.writer = bufio.NewWriter(f)
 				p.file_closed = false
@@ -338,7 +355,7 @@ func parse(str string, handle *nmea0183.Handle, monitor_channel chan string) err
 	}()
 
 	str = strings.TrimSpace(str)
-	if len(str) > 5 && str[0] == '@'{
+	if len(str) > 5 && str[0] == '@' {
 		str1 := strings.Split(str[1:], "@")
 		tag = str1[0]
 		str = str1[1]

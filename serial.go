@@ -39,12 +39,12 @@ func (n *NmeaMux) serialProcess(name string) error {
 
 	n.SerialIoDevices[name].SetMode(int(baud), portName)
 
-	(n.monitor_channel) <- fmt.Sprintf("Serial device %s baud rate set to %d\n", name, baud)
+	(n.monitor_channel) <- fmt.Sprintf("Serial device %s baud rate set to %d", name, baud)
 
 	err = n.SerialIoDevices[name].Open()
 
 	if err != nil {
-		(n.monitor_channel) <- fmt.Sprintf("Serial device %s <name> == <%s> should be a valid port error: %s\n",
+		(n.monitor_channel) <- fmt.Sprintf("Serial device %s <name> == <%s> should be a valid port error: %s",
 			name, portName, err)
 	} else {
 		if outputs, found := config["outputs"]; found {
