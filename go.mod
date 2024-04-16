@@ -5,7 +5,7 @@ go 1.21.6
 require github.com/spf13/viper v1.18.2 // direct
 
 require (
-	github.com/martinmarsh/nmea0183 v1.0.0
+	github.com/martinmarsh/nmea0183 v1.0.1
 	go.bug.st/serial v1.6.1
 )
 

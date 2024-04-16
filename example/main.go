@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/martinmarsh/nmea-mux"
+	"fmt"
 )
 
 func main() {
@@ -13,6 +14,8 @@ func main() {
 		n.Run()        // Run the virtual devices / go tasks
 		n.WaitToStop() // Wait for ever?
 
+	}else{
+		fmt.Println(err)
 	}
 
 }

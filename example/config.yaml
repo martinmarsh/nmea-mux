@@ -2,6 +2,21 @@ monitor:
     type: monitor
     server_address: 192.168.1.166:8014
 
+compass:
+    name: /dev/ttyUSB0
+    type: serial
+    origin_tag: cp_
+    outputs:
+      - to_processor
+
+gps:_backup:
+    name: /dev/ttyUSB2
+    type: serial
+    baud: 38400
+    origin_tag: gm_
+    input: to_local_gps
+    outputs:
+      - to_processor
 
 bridge:
     name: /dev/ttyUSB1
@@ -11,6 +26,14 @@ bridge:
     input: to_2000
     outputs:
       - to_processor
+      - to_udp_opencpn
+
+ais:
+    name: /dev/ttyUSB3
+    type: serial
+    baud: 38400
+    outputs:
+      - to_2000
       - to_udp_opencpn
 
 udp_compass_listen:
@@ -45,19 +68,32 @@ compass_out:
     then_origin_tag: esp_             # selects data tagged from esp_ source
     outputs:
     - to_udp_opencpn
-    - to_udp_autohelm
     - to_2000
+    - to_udp_autohelm
     
 gps_out:
     type: make_sentence
     processor: main_processor
-    sentence: rms
-    every: 15
-    prefix: GP
+    sentence: rmc
+    every: 400
+    prefix: DP
     use_origin_tag: ray_ 
     else_origin_tag: gm_ 
     outputs:
         - to_udp_opencpn
+        - to_2000
+        - to_local_gps
+    
+depth_out:
+    type: make_sentence
+    processor: main_processor
+    sentence: dpt
+    every: 1000
+    prefix: SD
+    use_origin_tag: ray_ 
+    outputs:
+        - to_udp_opencpn
+        - to_2000
 
 udp_opencpn:
     type:  udp_client
@@ -67,4 +103,4 @@ udp_opencpn:
 udp_autohelm:
     type:  udp_client
     input: to_udp_autohelm
-    server_address: 192.168.1.166:8010
+    server_address: 192.168.1.166:8015
