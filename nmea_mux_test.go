@@ -126,6 +126,10 @@ func TestMonitorUdp(t *testing.T) {
 
 func TestRunDevices(t *testing.T) {
 	n := NewMux()
+	expected_messages := []string{
+		"Mock Process called with test1",
+		"Mock Process called with test2",
+	}
 	n.LoadConfig("./test_data/", "config", "yaml", test_data.Good_config)
 	n.devices = make(map[string](device))
 	n.monitor_active = true
@@ -134,10 +138,6 @@ func TestRunDevices(t *testing.T) {
 	n.Run()
 
 	messages := test_helpers.GetMessages(n.monitor_channel)
-	expected_messages := []string{
-		"Mock Process called with test1",
-		"Mock Process called with test2",
-	}
 
 	if _, _, not_found, err := test_helpers.MessagesIn(expected_messages, messages); not_found {
 		t.Errorf("Monitor message error %s", err.Error())

@@ -347,12 +347,12 @@ func (p *Processor) fileLogger(name string) {
 func parse(str string, handle *nmea0183.Handle, monitor_channel chan string) error {
 	tag := ""
 
-	/*defer func() {
+	defer func() {
 		if r := recover(); r != nil {
 			str = ""
 			monitor_channel <- "** Recover from NMEA Panic **"
 		}
-	}()*/
+	}()
 
 	tag, str = trim_tag(str)
 
