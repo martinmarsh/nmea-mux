@@ -48,6 +48,7 @@ type Processor struct {
 	log_period      int
 	date_time_var   []string
 	input           string
+	add_now_var		string
 	channels        *map[string](chan string)
 	writer          *bufio.Writer
 	file_closed     bool
@@ -65,6 +66,15 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 	config := n.config.Values[name]
 	error_str := ""
 
+	process.add_now_var = ""
+	if add_now_var, found := config["add_now_var"]; found {
+		if len(add_now_var) == 1 {
+			process.add_now_var = add_now_var[0]
+		} else {
+			error_str += "Invalid number of add_var_now settings must be exactly 1;"
+		}
+	}
+ 
 	if inputs, found := config["input"]; found {
 		if len(inputs) == 1 {
 			process.input = inputs[0]
@@ -110,6 +120,15 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 			}
 		} else {
 			error_str += "Retain setting must not be a list;"
+		}
+	}
+
+	if data_parse, found := config["data_parse"]; found {
+		for _, data := range data_parse {
+			tag, sentence := trim_tag(data[1:])     //ignore 1st character as cannot start with @
+			if _,_, err := process.Nmea.ParsePrefixVar(sentence, tag); err != nil {
+				error_str += fmt.Sprintf("make sentence parser  error %s data %s ;", err, sentence)
+			}
 		}
 	}
 
@@ -309,6 +328,11 @@ func (p *Processor) makeSentence(name string) {
 func (p *Processor) fileLogger(name string) {
 	data_map := p.Nmea.GetMap()
 
+	if len(p.add_now_var) > 0 { 
+		now := time.Now().UTC();  
+		data_map[p.add_now_var] = now.Format(time.RFC3339)
+	}
+
 	if p.file_closed {
 		file_name := ""
 		for _, date_var := range p.date_time_var {
@@ -316,7 +340,7 @@ func (p *Processor) fileLogger(name string) {
 				dt = strings.Replace(dt[:16], ":", "_", -1)
 				file_name = fmt.Sprintf("ships_log_%s.txt", dt)
 				break
-			}
+			} 
 		}
 
 		if len(file_name) > 0 {
@@ -334,6 +358,7 @@ func (p *Processor) fileLogger(name string) {
 
 	} else {
 		data_json, _ := json.Marshal(data_map)
+
 		rec_str := fmt.Sprintf("%s\n", string(data_json))
 		//fmt.Println(rec_str)
 		if _, err := p.writer.WriteString(rec_str); err != nil {

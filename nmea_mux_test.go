@@ -143,3 +143,36 @@ func TestRunDevices(t *testing.T) {
 		t.Errorf("Monitor message error %s", err.Error())
 	}
 }
+
+func TestRemoveGivenTag(t *testing.T){
+	message := "@sp_@my message"
+	tag, rest := trim_tag(message)
+    if tag != "sp_" {
+        t.Errorf("Tag not found especed sp_ got %s", tag)
+    }
+	if rest != "my message" {
+        t.Errorf("Message wong got %s", rest)
+	}
+}
+
+func TestRemoveNoTag(t *testing.T){
+	message := "my message"
+	tag, rest := trim_tag(message)
+    if tag != "" {
+        t.Errorf("Tag should be null got %s", tag)
+    }
+	if rest != "my message" {
+        t.Errorf("Message wong got %s", rest)
+	}
+}
+
+func TestRemovebadTag(t *testing.T){
+	message := "@my message"
+	tag, rest := trim_tag(message)
+    if tag != "" {
+        t.Errorf("Tag should be null got %s", tag)
+    }
+	if rest != "my message" {
+        t.Errorf("Message wong got %s", rest)
+	}
+}
