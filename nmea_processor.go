@@ -23,7 +23,7 @@ type ProcessInterfacer interface {
 	runner(string)
 	fileLogger(string)
 	makeSentence(name string)
-	newProcessor() *Processor
+	GetNmeaHandle() *nmea0183.Handle
 }
 
 type compare struct {
@@ -57,6 +57,7 @@ type Processor struct {
 
 func (n *NmeaMux) nmeaProcessorProcess(name string) error {
 	process := n.newProcessor()
+	n.Processors[name] = process
 	return n.nmeaProcessorConfig(name, process)
 }
 
@@ -367,6 +368,10 @@ func (p *Processor) fileLogger(name string) {
 		}
 	}
 
+}
+
+func (p *Processor) GetNmeaHandle() *nmea0183.Handle {
+	return p.Nmea
 }
 
 func parse(str string, handle *nmea0183.Handle, monitor_channel chan string) error {

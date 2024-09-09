@@ -35,12 +35,14 @@ formats:
   hdm:
   - hdm
   xs1:
-  - auto
+  - mode        # 0 = idle, 1 = auto helm, 2 = manual steer mode
   - hdm
   - set_hdm
+  - hdm_diff
   - compass_status
   - pitch
   - roll
+  - helm        # required helm position +/- 4096 per rotation 
   - compass_temp
   - auto_gain
   - auto_pi
@@ -75,7 +77,6 @@ variables:
   aper: A
   arrival_radius: x.x
   arrived_circle: A
-  auto: x
   auto_gain: x
   auto_pi: x
   auto_pd: x
@@ -95,11 +96,14 @@ variables:
   fix_date: ddmmyy
   fix_time: hhmmss.ss
   hdm: x.x,T
+  hdm_diff: -x.x
+  helm: -x
   hts: xxx,T
   lat: lat,NS
   long: long,WE
   mag_var: x.x,w
   month: DD_month
+  mode: x
   nav_status: A
   passed_waypt: A
   position: lat,NS,long,WE

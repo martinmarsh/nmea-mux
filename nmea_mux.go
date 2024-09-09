@@ -48,6 +48,7 @@ type NmeaMux struct {
 	SerialIoDevices    map[string](io.Serial_interfacer)
 	UdpClientIoDevices map[string](io.UdpClient_interfacer)
 	UdpServerIoDevices map[string](io.UdpServer_interfacer)
+	Processors		   map[string](ProcessInterfacer)
 }
 
 // A device is the top level item in the mux config
@@ -69,6 +70,7 @@ func NewMux() *NmeaMux {
 		SerialIoDevices:    make(map[string](io.Serial_interfacer)),
 		UdpClientIoDevices: make(map[string](io.UdpClient_interfacer)),
 		UdpServerIoDevices: make(map[string](io.UdpServer_interfacer)),
+		Processors: 		make(map[string](ProcessInterfacer)),		
 		config: &configData{
 			Index:          make(map[string]([]string)),
 			TypeList:       make(map[string]([]string)),
