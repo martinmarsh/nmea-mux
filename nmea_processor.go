@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
+	"sync"
 	"github.com/martinmarsh/nmea0183"
 )
 
@@ -23,7 +23,7 @@ type ProcessInterfacer interface {
 	runner(string)
 	fileLogger(string)
 	makeSentence(name string)
-	GetNmeaHandle() *nmea0183.Handle
+	GetNmeaHandle() *NmeaHandle
 }
 
 type compare struct {
@@ -41,10 +41,15 @@ type sentence_def struct {
 	outputs         []string
 }
 
+type NmeaHandle struct {
+	Nmea            *nmea0183.Handle
+	Nmea_mu       	sync.Mutex
+}
+
 type Processor struct {
 	every           map[string]int
 	definitions     map[string]sentence_def
-	Nmea            *nmea0183.Handle
+	NmeaHandle      *NmeaHandle
 	log_period      int
 	date_time_var   []string
 	input           string
@@ -56,14 +61,13 @@ type Processor struct {
 }
 
 func (n *NmeaMux) nmeaProcessorProcess(name string) error {
-	process := n.newProcessor()
+	var Sentences nmea0183.Sentences
+	process := n.newProcessor(&Sentences)
 	n.Processors[name] = process
-	return n.nmeaProcessorConfig(name, process)
+	return n.nmeaProcessorConfig(name, process, &Sentences)
 }
 
-func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
-	var Sentences nmea0183.Sentences
-
+func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor, Sentences *nmea0183.Sentences) error {
 	config := n.config.Values[name]
 	error_str := ""
 
@@ -110,12 +114,12 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 		Sentences.SaveLoadDefault()
 	}
 
-	process.Nmea = Sentences.MakeHandle()
+	//process.NmeaHandle.Nmea = Sentences.MakeHandle()
 
 	if data_retains, found := config["data_retain"]; found {
 		if len(data_retains) == 1 {
 			if retain, err := strconv.ParseInt(data_retains[0], 10, 64); err == nil {
-				process.Nmea.Preferences(retain, true)
+				process.NmeaHandle.Nmea.Preferences(retain, true)
 			} else {
 				error_str += "Bad data retain setting;"
 			}
@@ -127,7 +131,7 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 	if data_parse, found := config["data_parse"]; found {
 		for _, data := range data_parse {
 			tag, sentence := trim_tag(data[1:])     //ignore 1st character as cannot start with @
-			if _,_, err := process.Nmea.ParsePrefixVar(sentence, tag); err != nil {
+			if _,_, err := process.NmeaHandle.Nmea.ParsePrefixVar(sentence, tag); err != nil {
 				error_str += fmt.Sprintf("make sentence parser  error %s data %s ;", err, sentence)
 			}
 		}
@@ -243,11 +247,15 @@ func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name 
 	return error_str
 }
 
-func (n *NmeaMux) newProcessor() *Processor {
+func (n *NmeaMux) newProcessor(Sentences  *nmea0183.Sentences) *Processor {
+	
 	return &Processor{
 		definitions:     make(map[string]sentence_def),
 		every:           make(map[string]int),
 		monitor_channel: n.monitor_channel,
+		NmeaHandle:      &NmeaHandle{
+			Nmea:    Sentences.MakeHandle(),
+		},
 	}
 }
 
@@ -273,7 +281,7 @@ func (p *Processor) runner(name string) {
 	for {
 		select {
 		case str := <-(*p.channels)[p.input]:
-			if err := parse(str, p.Nmea, p.monitor_channel); err != nil {
+			if err := parse(str, p.NmeaHandle, p.monitor_channel); err != nil {
 				p.monitor_channel <- fmt.Sprintf("Nmea parsing error %s", err)
 			}
 		case <-log_ticker.C:
@@ -295,8 +303,10 @@ func (p *Processor) makeSentence(name string) {
 	manCode := pn.prefix
 	sentence_name := pn.sentence
 	alternative := false
+	p.NmeaHandle.Nmea_mu.Lock()
+    defer p.NmeaHandle.Nmea_mu.Unlock()
 	if len(pn.conditional) > 0 {
-		data := p.Nmea.GetMap()
+		data := p.NmeaHandle.Nmea.GetMap()
 		alternative = true
 		for _, c := range pn.conditional {
 			if data[c.variable] != c.constant {
@@ -317,7 +327,7 @@ func (p *Processor) makeSentence(name string) {
 	}
 
 	for _, var_tag := range try_list {
-		if str, err := p.Nmea.WriteSentencePrefixVar(manCode, sentence_name, var_tag); err == nil {
+		if str, err := p.NmeaHandle.Nmea.WriteSentencePrefixVar(manCode, sentence_name, var_tag); err == nil {
 			for _, v := range pn.outputs {
 				((*p.channels)[v]) <- str
 			}
@@ -327,7 +337,9 @@ func (p *Processor) makeSentence(name string) {
 }
 
 func (p *Processor) fileLogger(name string) {
-	data_map := p.Nmea.GetMap()
+	p.NmeaHandle.Nmea_mu.Lock()
+    defer p.NmeaHandle.Nmea_mu.Unlock()
+	data_map := p.NmeaHandle.Nmea.GetMap()
 
 	if len(p.add_now_var) > 0 { 
 		now := time.Now().UTC();  
@@ -370,11 +382,11 @@ func (p *Processor) fileLogger(name string) {
 
 }
 
-func (p *Processor) GetNmeaHandle() *nmea0183.Handle {
-	return p.Nmea
+func (p *Processor) GetNmeaHandle() *NmeaHandle {
+	return p.NmeaHandle
 }
 
-func parse(str string, handle *nmea0183.Handle, monitor_channel chan string) error {
+func parse(str string, handle *NmeaHandle, monitor_channel chan string) error {
 	tag := ""
 
 	defer func() {
@@ -388,7 +400,9 @@ func parse(str string, handle *nmea0183.Handle, monitor_channel chan string) err
 
 	if len(str) > 5 && len(str) < 89 && str[0] == '$' {
 		fmt.Println(tag, "-",str)
-		_, _, error := handle.ParsePrefixVar(str, tag)
+		handle.Nmea_mu.Lock()
+    	defer handle.Nmea_mu.Unlock()
+		_, _, error := handle.Nmea.ParsePrefixVar(str, tag)
 		return error
 	}
 	//ignore sentences starting with "!"

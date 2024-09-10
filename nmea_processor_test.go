@@ -11,6 +11,7 @@ import (
 
 	"github.com/martinmarsh/nmea-mux/test_data"
 	"github.com/martinmarsh/nmea-mux/test_helpers"
+	"github.com/martinmarsh/nmea0183"
 )
 
 type mockProcess struct {
@@ -37,10 +38,11 @@ func (m *mockProcess) newProcessor() *Processor {
 
 func TestProcessor(t *testing.T) {
 	n := NewMux()
+	var sentences nmea0183.Sentences
 	n.LoadConfig("./test_data/", "config", "yaml", test_data.Good_config)
 	name := "main_processor"
-	processor := n.newProcessor()
-	err := n.nmeaProcessorConfig(name, processor)
+	processor := n.newProcessor(&sentences)
+	err := n.nmeaProcessorConfig(name, processor, &sentences)
 	time.Sleep(500 * time.Millisecond)
 	if err != nil {
 		t.Errorf("error returned %s", err)
@@ -57,11 +59,12 @@ func TestProcessor(t *testing.T) {
 
 func TestProcessorConfig(t *testing.T) {
 	n := NewMux()
+	var sentences nmea0183.Sentences
 	n.LoadConfig("./test_data/", "config", "yaml", test_data.Good_config)
 	name := "main_processor"
-	process := n.newProcessor()
+	process := n.newProcessor(&sentences)
 
-	if err := n.nmeaProcessorConfig(name, process); err != nil {
+	if err := n.nmeaProcessorConfig(name, process, &sentences); err != nil {
 		t.Errorf("Processor Config Error %s", err)
 	}
 
@@ -163,10 +166,10 @@ func TestProcessorConfig(t *testing.T) {
 		t.Errorf("Expected >2 log attempts got %d", len(messages))
 	}
 
-	process.Nmea.ParsePrefixVar("$HCHDM,200.5,M", "cp_")
-	process.Nmea.ParsePrefixVar("$HCHDM,100.5,M", "esp_")
+	process.NmeaHandle.Nmea.ParsePrefixVar("$HCHDM,200.5,M", "cp_")
+	process.NmeaHandle.Nmea.ParsePrefixVar("$HCHDM,100.5,M", "esp_")
 
-	process.Nmea.Update(map[string]string{"esp_compass_status": "3333"})
+	process.NmeaHandle.Nmea.Update(map[string]string{"esp_compass_status": "3333"})
 
 	go process.makeSentence("compass_out")
 	compass_messages := test_helpers.GetMessages(n.channels["to_2000"])
@@ -174,7 +177,7 @@ func TestProcessorConfig(t *testing.T) {
 	if compass_messages[0] != "$HFHDM,200.5,M*2B" {
 		t.Error("wrong compass message")
 	}
-	process.Nmea.Update(map[string]string{"esp_auto": "1"})
+	process.NmeaHandle.Nmea.Update(map[string]string{"esp_auto": "1"})
 
 	go process.makeSentence("compass_out")
 	compass_messages = test_helpers.GetMessages(n.channels["to_2000"])

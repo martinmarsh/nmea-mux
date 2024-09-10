@@ -5,12 +5,12 @@ monitor:
     server_address: 192.168.1.166:8014
 
 compass_sim:
-    name: /dev/ttyUSB1
+    name: com5
     type: serial
     input: to_compass
 
 compass:
-    name: /dev/ttyUSB0
+    name: com6
     type: serial
     origin_tag: cp_
     outputs:
