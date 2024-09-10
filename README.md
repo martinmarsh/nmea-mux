@@ -114,8 +114,11 @@ Github.com/martinmarsh/go_boat is a real world example of use.
     to get NMEA data being collected and periodically logged.
     */
     func Start(mux *nmea_mux.NmeaMux) error {
-        nmea := mux.Processors["main_processor"].GetNmeaHandle()
-        fmt.Printf("My data processing started %s \n", nmea.GetMap())
+        handle := mux.Processors["main_processor"].GetNmeaHandle()
+        handle.Nmea_mu.Lock()           // must lock and unlock on function end
+        defer handle.Nmea_mu.Unlock()
+        // can now safely access data returned from GetMap and other handle functions
+        fmt.Printf("My data processing started %s \n", handle.nmea.GetMap())
         // see https://github.com/martinmarsh/nmea0183 on how you might use
         // this handle to process NMEA data received
         // Also mux allows you to get parsed config data and channels and to
