@@ -68,7 +68,7 @@ func (n *NmeaMux) nmeaProcessorProcess(name string) error {
 }
 
 func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor, Sentences *nmea0183.Sentences) error {
-	config := n.config.Values[name]
+	config := n.Config.Values[name]
 	error_str := ""
 
 	process.add_now_var = ""
@@ -140,9 +140,9 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor, Sentences
 	// now we need to find and process any matching sentence definitions
 	// processor setting must match this processor by name
 
-	if makes, found := n.config.TypeList["make_sentence"]; found {
+	if makes, found := n.Config.TypeList["make_sentence"]; found {
 		for _, make_name := range makes {
-			m_config := n.config.Values[make_name]
+			m_config := n.Config.Values[make_name]
 
 			ok_to_pass := true
 
@@ -153,7 +153,7 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor, Sentences
 				if processor[0] != name {
 					ok_to_pass = false //belongs to another process so ignore
 				}
-			} else if len(n.config.TypeList["processor"]) != 1 {
+			} else if len(n.Config.TypeList["processor"]) != 1 {
 				error_str += fmt.Sprintf("Make sentence %s needs to be associated with a processor - add a processor setting;", make_name)
 				ok_to_pass = false
 			}
@@ -164,15 +164,15 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor, Sentences
 		}
 	}
 
-	process.channels = &n.channels
+	process.channels = &n.Channels
 
 	if len(error_str) > 0 {
-		(n.monitor_channel) <- fmt.Sprintf("Processor <%s> Errors: %s", name, error_str)
+		(n.Monitor_channel) <- fmt.Sprintf("Processor <%s> Errors: %s", name, error_str)
 		return fmt.Errorf("Processor %s/make sentence has these errors:%s", name, error_str)
 	}
 
 	go process.runner(name) //allows mock testing by injection of process_device dependency
-	(n.monitor_channel) <- fmt.Sprintf("Processor %s started", name)
+	(n.Monitor_channel) <- fmt.Sprintf("Processor %s started", name)
 
 	return nil
 }
@@ -252,7 +252,7 @@ func (n *NmeaMux) newProcessor(Sentences  *nmea0183.Sentences) *Processor {
 	return &Processor{
 		definitions:     make(map[string]sentence_def),
 		every:           make(map[string]int),
-		monitor_channel: n.monitor_channel,
+		monitor_channel: n.Monitor_channel,
 		NmeaHandle:      &NmeaHandle{
 			Nmea:    Sentences.MakeHandle(),
 		},

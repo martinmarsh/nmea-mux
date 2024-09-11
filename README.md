@@ -87,7 +87,7 @@ Github.com/martinmarsh/go_boat is a real world example of use.
 1. Clone to local directory
 1. Add the main go file for your project:
 
-    ``` go 
+    ``` go
     package main
 
     import (

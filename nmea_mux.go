@@ -19,7 +19,6 @@ type MuxInterfacer interface {
 	LoadConfig(...string) error
 	Monitor(string, bool, bool)
 	Run() error
-
 	RunDevice(string, device) error
 	RunMonitor(string)
 	serialProcess(string) error
@@ -38,17 +37,21 @@ type configData struct {
 }
 
 type NmeaMux struct {
-	config             *configData
+	Config             *configData
 	udp_monitor_active bool
 	monitor_active     bool
-	monitor_channel    chan string
-	stop_channel       chan string
-	channels           map[string](chan string)
+	Monitor_channel    chan string
+	monitor_address	   string
+	monitor_print	   bool
+	udp_monitor		   *io.UdpClientDevice
+	Stop_channel       chan string
+	Channels           map[string](chan string)
 	devices            map[string](device)
 	SerialIoDevices    map[string](io.Serial_interfacer)
 	UdpClientIoDevices map[string](io.UdpClient_interfacer)
 	UdpServerIoDevices map[string](io.UdpServer_interfacer)
 	Processors		   map[string](ProcessInterfacer)
+	ExternalDevices    map[string](map[string][]string)
 }
 
 // A device is the top level item in the mux config
@@ -61,17 +64,21 @@ type device func(n *NmeaMux, s string) error
 // and multiplexer
 func NewMux() *NmeaMux {
 	n := NmeaMux{
-		monitor_channel:    make(chan string, 10),
-		stop_channel:       make(chan string, 1),
+		Monitor_channel:    make(chan string, 10),
+		Stop_channel:       make(chan string, 1),
 		udp_monitor_active: false,
 		monitor_active:     false,
-		channels:           make(map[string](chan string)),
+		monitor_address:	"",
+		monitor_print:	    false,
+		udp_monitor:		&io.UdpClientDevice{},
+		Channels:           make(map[string](chan string)),
 		devices:            make(map[string](device)),
+		ExternalDevices:    make(map[string](map[string][]string)),
 		SerialIoDevices:    make(map[string](io.Serial_interfacer)),
 		UdpClientIoDevices: make(map[string](io.UdpClient_interfacer)),
 		UdpServerIoDevices: make(map[string](io.UdpServer_interfacer)),
 		Processors: 		make(map[string](ProcessInterfacer)),		
-		config: &configData{
+		Config: &configData{
 			Index:          make(map[string]([]string)),
 			TypeList:       make(map[string]([]string)),
 			InChannelList:  make(map[string]([]string)),
@@ -121,61 +128,61 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 	// also find names by device type every section has a type
 	for _, k := range all {
 		key := strings.SplitN(k, ".", 2)
-		if _, ok := n.config.Values[key[0]]; !ok {
-			n.config.Values[key[0]] = make(map[string][]string)
+		if _, ok := n.Config.Values[key[0]]; !ok {
+			n.Config.Values[key[0]] = make(map[string][]string)
 		}
-		if _, ok := n.config.Values[key[0]][key[1]]; !ok {
-			n.config.Values[key[0]][key[1]] = viper.GetStringSlice(k)
+		if _, ok := n.Config.Values[key[0]][key[1]]; !ok {
+			n.Config.Values[key[0]][key[1]] = viper.GetStringSlice(k)
 		}
 
 		if key[1] == "type" {
 			type_value := viper.GetString(k)
-			if _, ok := n.config.TypeList[type_value]; !ok {
-				n.config.TypeList[type_value] = []string{key[0]}
+			if _, ok := n.Config.TypeList[type_value]; !ok {
+				n.Config.TypeList[type_value] = []string{key[0]}
 			} else {
-				n.config.TypeList[type_value] = append(n.config.TypeList[type_value], key[0])
+				n.Config.TypeList[type_value] = append(n.Config.TypeList[type_value], key[0])
 			}
 		}
 
 		if key[1] == "input" {
 			channel_value := viper.GetString(k)
-			if _, ok := n.config.InChannelList[channel_value]; !ok {
-				n.config.InChannelList[channel_value] = []string{key[0]}
+			if _, ok := n.Config.InChannelList[channel_value]; !ok {
+				n.Config.InChannelList[channel_value] = []string{key[0]}
 			} else {
-				n.config.InChannelList[channel_value] = append(n.config.InChannelList[channel_value], key[0])
+				n.Config.InChannelList[channel_value] = append(n.Config.InChannelList[channel_value], key[0])
 			}
 		}
 
 		if key[1] == "outputs" {
-			for _, channel_name := range n.config.Values[key[0]][key[1]] {
-				if _, ok := n.config.OutChannelList[channel_name]; !ok {
-					n.config.OutChannelList[channel_name] = []string{key[0]}
+			for _, channel_name := range n.Config.Values[key[0]][key[1]] {
+				if _, ok := n.Config.OutChannelList[channel_name]; !ok {
+					n.Config.OutChannelList[channel_name] = []string{key[0]}
 				} else {
-					n.config.OutChannelList[channel_name] = append(n.config.OutChannelList[channel_name], key[0])
+					n.Config.OutChannelList[channel_name] = append(n.Config.OutChannelList[channel_name], key[0])
 				}
 			}
 		}
 
-		if _, ok := n.config.Index[key[0]]; !ok {
-			n.config.Index[key[0]] = []string{key[1]}
+		if _, ok := n.Config.Index[key[0]]; !ok {
+			n.Config.Index[key[0]] = []string{key[1]}
 		} else {
-			n.config.Index[key[0]] = append(n.config.Index[key[0]], key[1])
+			n.Config.Index[key[0]] = append(n.Config.Index[key[0]], key[1])
 		}
 	}
 
-	for channel := range n.config.InChannelList {
-		if n.config.OutChannelList[channel] == nil {
+	for channel := range n.Config.InChannelList {
+		if n.Config.OutChannelList[channel] == nil {
 			err_str += channel + ","
 		}
 		// Create every input channel - the error ones will block
-		n.channels[channel] = make(chan string, 30)
+		n.Channels[channel] = make(chan string, 30)
 
 	}
-	for channel := range n.config.OutChannelList {
-		if n.config.InChannelList[channel] == nil {
+	for channel := range n.Config.OutChannelList {
+		if n.Config.InChannelList[channel] == nil {
 			err_str += channel + ","
 			//Create the not used channel anyway - may block when full
-			n.channels[channel] = make(chan string, 30)
+			n.Channels[channel] = make(chan string, 30)
 		}
 
 	}
@@ -184,7 +191,7 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 		err_str = fmt.Sprintf("input channels and output channels must be wired together: check these channels %s -", err_str)
 	}
 
-	for processType, names := range n.config.TypeList {
+	for processType, names := range n.Config.TypeList {
 		//fmt.Println(processType, names)
 		for _, name := range names {
 			switch processType {
@@ -196,13 +203,14 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 				n.UdpClientIoDevices[name] = &io.UdpClientDevice{}
 			case "nmea_processor":
 				n.devices[name] = (*NmeaMux).nmeaProcessorProcess
-				//n.process_device[name] = &Processor{}
 			case "udp_listen":
 				n.devices[name] = (*NmeaMux).udpListenerProcess
 				n.UdpServerIoDevices[name] = &io.UdpServerDevice{}
 			case "make_sentence":
 			case "monitor":
 				n.devices[name] = (*NmeaMux).RunMonitor
+			case "external":
+				n.ExternalDevices[name] = n.Config.Values[name]
 			default:
 				err_str = fmt.Sprintf("%sUnknown device found: %s -", err_str, processType)
 			}
@@ -218,7 +226,7 @@ func (n *NmeaMux) LoadConfig(settings ...string) error {
 
 func (n *NmeaMux) Monitor(str string, print bool, udp bool) {
 	if udp && n.udp_monitor_active {
-		n.monitor_channel <- str
+		n.udp_monitor.Write(str)
 	}
 	if print {
 		fmt.Println(str)
@@ -227,10 +235,10 @@ func (n *NmeaMux) Monitor(str string, print bool, udp bool) {
 
 func (n *NmeaMux) WaitToStop() {
 	//run forever
-	<-n.stop_channel
+	<-n.Stop_channel
 }
 
-// Runs the config devices
+// Runs the Config devices
 func (n *NmeaMux) Run() error {
 	for name, v := range n.devices {
 		n.RunDevice(name, v)
@@ -240,8 +248,8 @@ func (n *NmeaMux) Run() error {
 
 func (n *NmeaMux) monitor_start() {
 	if !n.monitor_active {
-		if _, found := n.config.TypeList["monitor"]; found {
-			name := n.config.TypeList["monitor"][0]
+		if _, found := n.Config.TypeList["monitor"]; found {
+			name := n.Config.TypeList["monitor"][0]
 			if mon, found := n.devices[name]; found {
 				mon(n, name)
 			} else {
@@ -261,8 +269,21 @@ func (n *NmeaMux) RunDevice(name string, device_method device) error {
 
 // Must be started before run
 func (n *NmeaMux) RunMonitor(name string) error {
-	//config := n.config.Values[name]
-	//config may not exist
+	if mon_config, found := n.Config.Values[name]; found {
+		for i, v := range(mon_config){
+			if i == "server_address"{
+				n.monitor_address = v[0]
+			}
+			if i == "print" {
+				if v[0] == "on"{
+					n.monitor_print = true
+				} else {
+					n.monitor_print = false
+				}
+			}
+		}
+
+	}
 	if !n.monitor_active {
 		n.monitor_active = true
 		go n.backgroundMonitor()
@@ -272,9 +293,16 @@ func (n *NmeaMux) RunMonitor(name string) error {
 }
 
 func (n *NmeaMux) backgroundMonitor() {
+	n.udp_monitor_active = false
+	if len(n.monitor_address) > 12 {
+		if err := n.udp_monitor.Open(n.monitor_address); err == nil {
+			defer n.udp_monitor.Close()
+			n.udp_monitor_active = true
+		}
+	}
 	for {
-		str := <-n.monitor_channel
-		n.Monitor(str, true, true)
+		str := <-n.Monitor_channel
+		n.Monitor(str, n.monitor_print, n.udp_monitor_active)
 	}
 }
 

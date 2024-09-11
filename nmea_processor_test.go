@@ -47,7 +47,7 @@ func TestProcessor(t *testing.T) {
 	if err != nil {
 		t.Errorf("error returned %s", err)
 	}
-	messages := test_helpers.GetMessages(n.monitor_channel)
+	messages := test_helpers.GetMessages(n.Monitor_channel)
 	expected_messages := []string{
 		"Processor main_processor started",
 	}
@@ -70,7 +70,7 @@ func TestProcessorConfig(t *testing.T) {
 
 	go process.runner(name)
 
-	messages := test_helpers.GetMessages(n.monitor_channel)
+	messages := test_helpers.GetMessages(n.Monitor_channel)
 	expected_messages := []string{
 		"Processor main_processor started",
 		"Runner main_processor started- log 1s",
@@ -153,7 +153,7 @@ func TestProcessorConfig(t *testing.T) {
 
 	time.Sleep(2100 * time.Millisecond)
 
-	messages = test_helpers.GetMessages(n.monitor_channel)
+	messages = test_helpers.GetMessages(n.Monitor_channel)
 
 	expected_messages = []string{
 		"Log main_processor waiting for datetime",
@@ -172,7 +172,7 @@ func TestProcessorConfig(t *testing.T) {
 	process.NmeaHandle.Nmea.Update(map[string]string{"esp_compass_status": "3333"})
 
 	go process.makeSentence("compass_out")
-	compass_messages := test_helpers.GetMessages(n.channels["to_2000"])
+	compass_messages := test_helpers.GetMessages(n.Channels["to_2000"])
 
 	if compass_messages[0] != "$HFHDM,200.5,M*2B" {
 		t.Error("wrong compass message")
@@ -180,7 +180,7 @@ func TestProcessorConfig(t *testing.T) {
 	process.NmeaHandle.Nmea.Update(map[string]string{"esp_auto": "1"})
 
 	go process.makeSentence("compass_out")
-	compass_messages = test_helpers.GetMessages(n.channels["to_2000"])
+	compass_messages = test_helpers.GetMessages(n.Channels["to_2000"])
 	if compass_messages[0] != "$HFHDM,100.5,M*28" {
 		t.Error("wrong compass message")
 	}

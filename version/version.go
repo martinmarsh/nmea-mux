@@ -1,6 +1,6 @@
 package version
 
 var (
-	BuildVersion string = "v0.1.9"
+	BuildVersion string = "v1.0.0"
 	BuildTime    string = "Beta"
 )

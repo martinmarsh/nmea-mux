@@ -48,13 +48,14 @@ func TestUdpClientRealSend(t *testing.T) {
 	n := NewMux()
 	n.LoadConfig("./test_data/", "config", "yaml", test_data.Good_config)
 	n.RunDevice("udp_opencpn", n.devices["udp_opencpn"])
-	expected_chan_response_test(n.monitor_channel, "Started udp client udp_opencpn sending messages from to_udp_opencpn", false, t)
-	expected_chan_response_test(n.monitor_channel, "Started Udp client udp_opencpn sending to", false, t)
+	expected_chan_response_test(n.Monitor_channel, "Started udp client udp_opencpn sending messages from to_udp_opencpn", false, t)
+	expected_chan_response_test(n.Monitor_channel, "Started Udp client udp_opencpn sending to", false, t)
 	send := "Writing to a udp client this message"
 	(n.channels["to_udp_opencpn"]) <- send
 	time.Sleep(5000 * time.Millisecond)
 }
 */
+
 
 func TestUdpClientMockSend(t *testing.T) {
 	n := NewMux()
@@ -66,7 +67,7 @@ func TestUdpClientMockSend(t *testing.T) {
 	n.UdpClientIoDevices["udp_opencpn"] = m
 
 	n.RunDevice("udp_opencpn", n.devices["udp_opencpn"])
-	messages := test_helpers.GetMessages(n.monitor_channel)
+	messages := test_helpers.GetMessages(n.Monitor_channel)
 	expected_messages := []string{
 		"Started Udp client udp_opencpn sending to 192.168.1.14:8011 from 127.0.0.1:8000",
 		"Started Udp client udp_opencpn sending to",
@@ -77,9 +78,10 @@ func TestUdpClientMockSend(t *testing.T) {
 	}
 
 	send := "Writing to a udp client this message"
-	(n.channels["to_udp_opencpn"]) <- send
+	(n.Channels["to_udp_opencpn"]) <- send
 	time.Sleep(10 * time.Millisecond)
 	if m.sent != send {
 		t.Errorf("Should have sent <%s> but got <%s>", send, m.sent)
 	}
 }
+
