@@ -43,6 +43,8 @@ type NmeaMux struct {
 	Monitor_channel    chan string
 	monitor_address	   string
 	monitor_print	   bool
+	monitor_udp		   bool
+	monitor_report	   []string
 	udp_monitor		   *io.UdpClientDevice
 	Stop_channel       chan string
 	Channels           map[string](chan string)
@@ -69,7 +71,9 @@ func NewMux() *NmeaMux {
 		udp_monitor_active: false,
 		monitor_active:     false,
 		monitor_address:	"",
-		monitor_print:	    false,
+		monitor_print:	    true,
+		monitor_udp:		false,
+		monitor_report:     make([]string, 0),
 		udp_monitor:		&io.UdpClientDevice{},
 		Channels:           make(map[string](chan string)),
 		devices:            make(map[string](device)),
@@ -271,16 +275,24 @@ func (n *NmeaMux) RunDevice(name string, device_method device) error {
 func (n *NmeaMux) RunMonitor(name string) error {
 	if mon_config, found := n.Config.Values[name]; found {
 		for i, v := range(mon_config){
-			if i == "server_address"{
+			switch i {
+			case "server_address":
 				n.monitor_address = v[0]
-			}
-			if i == "print" {
+			case "print":
 				if v[0] == "on"{
 					n.monitor_print = true
 				} else {
 					n.monitor_print = false
 				}
-			}
+			case "udp":
+				if v[0] == "on"{
+					n.monitor_udp = true
+				} else {
+					n.monitor_udp = false
+				}
+			case "report":
+				n.monitor_report = v
+			}		
 		}
 
 	}
@@ -294,7 +306,7 @@ func (n *NmeaMux) RunMonitor(name string) error {
 
 func (n *NmeaMux) backgroundMonitor() {
 	n.udp_monitor_active = false
-	if len(n.monitor_address) > 12 {
+	if len(n.monitor_address) > 12 && n.monitor_udp {
 		if err := n.udp_monitor.Open(n.monitor_address); err == nil {
 			defer n.udp_monitor.Close()
 			n.udp_monitor_active = true
