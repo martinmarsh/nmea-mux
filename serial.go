@@ -100,7 +100,6 @@ func serialReader(name string, ser io.Serial_interfacer, outputs []string, tag s
 			time.Sleep(5 * time.Second)
 		} else {
 			for i := 0; i < n; i++ {
-				fmt.Printf("%c", buff[i])
 				if buff[i] != 10 {
 					cb.Write_byte(buff[i])
 				}
