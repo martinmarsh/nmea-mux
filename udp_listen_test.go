@@ -45,7 +45,7 @@ func TestUdpServerMockRealReceive(t *testing.T) {
 	name := "udp_compass_listen"
 	n.RunDevice(name, n.devices[name])
 	time.Sleep(1000 * time.Millisecond)
-	expected_chan_response_test(n.monitor_channel, "Started Upd_listen; name: udp_compass_listen  Port: 8006 channels:  to_processor", false, t)
+	expected_chan_response_test(n.Monitor_channel, "Started Upd_listen; name: udp_compass_listen  Port: 8006 channels:  to_processor", false, t)
 	str := <-(n.channels["to_processor"])
 	fmt.Println(str)
 }
@@ -67,7 +67,7 @@ func TestUdpServerMockReceive(t *testing.T) {
 	n.RunDevice(name, n.devices[name])
 	time.Sleep(1000 * time.Millisecond)
 
-	messages := test_helpers.GetMessages(n.monitor_channel)
+	messages := test_helpers.GetMessages(n.Monitor_channel)
 	expected_messages := []string{
 		"Started Upd_listen; name: udp_compass_listen  Port: 8006 channels:  to_processor",
 	}
@@ -76,7 +76,7 @@ func TestUdpServerMockReceive(t *testing.T) {
 		t.Errorf("Monitor message error %s", err.Error())
 	}
 
-	str := test_helpers.GetMessages(n.channels["to_processor"])
+	str := test_helpers.GetMessages(n.Channels["to_processor"])
 
 	message = "@esp_@" + message
 	if message != str[0] {

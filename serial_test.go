@@ -63,7 +63,7 @@ func TestRunSerialFail(t *testing.T) {
 	}
 	n.monitor_active = true
 	n.RunDevice("compass", n.devices["compass"])
-	messages := test_helpers.GetMessages(n.monitor_channel)
+	messages := test_helpers.GetMessages(n.Monitor_channel)
 	expected_messages := []string{
 		"started navmux serial compass",
 		"Serial device compass baud rate set to 4800",
@@ -90,7 +90,7 @@ func TestRunSerialEOF(t *testing.T) {
 	n.monitor_active = true
 	n.RunDevice("compass", n.devices["compass"])
 	time.Sleep(500 * time.Millisecond)
-	messages := test_helpers.GetMessages(n.monitor_channel)
+	messages := test_helpers.GetMessages(n.Monitor_channel)
 	expected_messages := []string{
 		"started navmux serial compass",
 		"Serial device compass baud rate set to 4800",
@@ -121,7 +121,7 @@ func TestRunSerialReadMessage(t *testing.T) {
 	n.RunDevice("compass", n.devices["compass"])
 	time.Sleep(100 * time.Millisecond)
 
-	messages := test_helpers.GetMessages(n.monitor_channel)
+	messages := test_helpers.GetMessages(n.Monitor_channel)
 	expected_messages := []string{
 		"started navmux serial compass",
 		"Serial device compass baud rate set to 4800",
@@ -132,7 +132,7 @@ func TestRunSerialReadMessage(t *testing.T) {
 		t.Errorf("Monitor message error %s", err.Error())
 	}
 
-	to_processor_messages := test_helpers.GetMessages(n.channels["to_processor"])
+	to_processor_messages := test_helpers.GetMessages(n.Channels["to_processor"])
 
 	expected_messages = []string{
 		"@cp_@Message 1",
@@ -168,7 +168,7 @@ func TestRunSerialReadWriteMessages(t *testing.T) {
 	n.RunDevice("bridge", n.devices["bridge"])
 	time.Sleep(100 * time.Millisecond)
 
-	messages := test_helpers.GetMessages(n.monitor_channel)
+	messages := test_helpers.GetMessages(n.Monitor_channel)
 	expected_messages := []string{
 		"started navmux serial bridge",
 		"Serial device bridge baud rate set to 38400",
@@ -181,7 +181,7 @@ func TestRunSerialReadWriteMessages(t *testing.T) {
 		t.Errorf("Monitor message error %s", err.Error())
 	}
 
-	to_processor_messages := test_helpers.GetMessages(n.channels["to_processor"])
+	to_processor_messages := test_helpers.GetMessages(n.Channels["to_processor"])
 
 	expected_messages = []string{
 		"@ray_@Message 1",
@@ -194,7 +194,7 @@ func TestRunSerialReadWriteMessages(t *testing.T) {
 	}
 
 	send := "Writing to a serial out this message"
-	(n.channels["to_2000"]) <- send
+	(n.Channels["to_2000"]) <- send
 	send += "\r\n" //this is auto added on send as it is stripped off by readers
 	time.Sleep(100 * time.Millisecond)
 	if m.writeSent != send {

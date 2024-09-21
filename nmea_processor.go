@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/martinmarsh/nmea0183"
@@ -23,7 +25,7 @@ type ProcessInterfacer interface {
 	runner(string)
 	fileLogger(string)
 	makeSentence(name string)
-	newProcessor() *Processor
+	GetNmeaHandle() *NmeaHandle
 }
 
 type compare struct {
@@ -41,10 +43,15 @@ type sentence_def struct {
 	outputs         []string
 }
 
+type NmeaHandle struct {
+	Nmea            *nmea0183.Handle
+	Nmea_mu       	sync.Mutex
+}
+
 type Processor struct {
 	every           map[string]int
 	definitions     map[string]sentence_def
-	Nmea            *nmea0183.Handle
+	NmeaHandle      *NmeaHandle
 	log_period      int
 	date_time_var   []string
 	input           string
@@ -52,18 +59,19 @@ type Processor struct {
 	channels        *map[string](chan string)
 	writer          *bufio.Writer
 	file_closed     bool
-	monitor_channel chan string
+	monitor_channel *chan string
+	monitor_report  []string
 }
 
 func (n *NmeaMux) nmeaProcessorProcess(name string) error {
-	process := n.newProcessor()
-	return n.nmeaProcessorConfig(name, process)
+	var Sentences nmea0183.Sentences
+	process := n.newProcessor(&Sentences)
+	n.Processors[name] = process
+	return n.nmeaProcessorConfig(name, process, &Sentences)
 }
 
-func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
-	var Sentences nmea0183.Sentences
-
-	config := n.config.Values[name]
+func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor, Sentences *nmea0183.Sentences) error {
+	config := n.Config.Values[name]
 	error_str := ""
 
 	process.add_now_var = ""
@@ -109,12 +117,12 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 		Sentences.SaveLoadDefault()
 	}
 
-	process.Nmea = Sentences.MakeHandle()
+	//process.NmeaHandle.Nmea = Sentences.MakeHandle()
 
 	if data_retains, found := config["data_retain"]; found {
 		if len(data_retains) == 1 {
 			if retain, err := strconv.ParseInt(data_retains[0], 10, 64); err == nil {
-				process.Nmea.Preferences(retain, true)
+				process.NmeaHandle.Nmea.Preferences(retain, true)
 			} else {
 				error_str += "Bad data retain setting;"
 			}
@@ -126,7 +134,7 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 	if data_parse, found := config["data_parse"]; found {
 		for _, data := range data_parse {
 			tag, sentence := trim_tag(data[1:])     //ignore 1st character as cannot start with @
-			if _,_, err := process.Nmea.ParsePrefixVar(sentence, tag); err != nil {
+			if _,_, err := process.NmeaHandle.Nmea.ParsePrefixVar(sentence, tag); err != nil {
 				error_str += fmt.Sprintf("make sentence parser  error %s data %s ;", err, sentence)
 			}
 		}
@@ -135,9 +143,9 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 	// now we need to find and process any matching sentence definitions
 	// processor setting must match this processor by name
 
-	if makes, found := n.config.TypeList["make_sentence"]; found {
+	if makes, found := n.Config.TypeList["make_sentence"]; found {
 		for _, make_name := range makes {
-			m_config := n.config.Values[make_name]
+			m_config := n.Config.Values[make_name]
 
 			ok_to_pass := true
 
@@ -148,7 +156,7 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 				if processor[0] != name {
 					ok_to_pass = false //belongs to another process so ignore
 				}
-			} else if len(n.config.TypeList["processor"]) != 1 {
+			} else if len(n.Config.TypeList["processor"]) != 1 {
 				error_str += fmt.Sprintf("Make sentence %s needs to be associated with a processor - add a processor setting;", make_name)
 				ok_to_pass = false
 			}
@@ -159,15 +167,15 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor) error {
 		}
 	}
 
-	process.channels = &n.channels
+	process.channels = &n.Channels
 
 	if len(error_str) > 0 {
-		(n.monitor_channel) <- fmt.Sprintf("Processor <%s> Errors: %s", name, error_str)
+		(n.Monitor_channel) <- fmt.Sprintf("Processor <%s> Errors: %s", name, error_str)
 		return fmt.Errorf("Processor %s/make sentence has these errors:%s", name, error_str)
 	}
 
 	go process.runner(name) //allows mock testing by injection of process_device dependency
-	(n.monitor_channel) <- fmt.Sprintf("Processor %s started", name)
+	(n.Monitor_channel) <- fmt.Sprintf("Processor %s started", name)
 
 	return nil
 }
@@ -242,11 +250,16 @@ func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name 
 	return error_str
 }
 
-func (n *NmeaMux) newProcessor() *Processor {
+func (n *NmeaMux) newProcessor(Sentences  *nmea0183.Sentences) *Processor {
+	
 	return &Processor{
 		definitions:     make(map[string]sentence_def),
 		every:           make(map[string]int),
-		monitor_channel: n.monitor_channel,
+		monitor_channel: &n.Monitor_channel,
+		monitor_report:  n.monitor_report,
+		NmeaHandle:      &NmeaHandle{
+			Nmea:    Sentences.MakeHandle(),
+		},
 	}
 }
 
@@ -267,13 +280,17 @@ func (p *Processor) runner(name string) {
 	for m_name, every := range p.every {
 		countdowns[m_name] = every
 	}
-	(p.monitor_channel) <- fmt.Sprintf("Runner %s started- log %ds", name, p.log_period)
+	*(p.monitor_channel) <- fmt.Sprintf("Runner %s started- log %ds", name, p.log_period)
 
 	for {
 		select {
 		case str := <-(*p.channels)[p.input]:
-			if err := parse(str, p.Nmea, p.monitor_channel); err != nil {
-				p.monitor_channel <- fmt.Sprintf("Nmea parsing error %s", err)
+			report := false
+			if slices.Contains(p.monitor_report, "parse"){
+				report = true
+			}
+			if err := parse(str, p.NmeaHandle, p.monitor_channel, report); err != nil {
+				*(p.monitor_channel) <- fmt.Sprintf("Nmea parsing error %s", err)
 			}
 		case <-log_ticker.C:
 			p.fileLogger(name)
@@ -294,8 +311,10 @@ func (p *Processor) makeSentence(name string) {
 	manCode := pn.prefix
 	sentence_name := pn.sentence
 	alternative := false
+	p.NmeaHandle.Nmea_mu.Lock()
+    defer p.NmeaHandle.Nmea_mu.Unlock()
 	if len(pn.conditional) > 0 {
-		data := p.Nmea.GetMap()
+		data := p.NmeaHandle.Nmea.GetMap()
 		alternative = true
 		for _, c := range pn.conditional {
 			if data[c.variable] != c.constant {
@@ -316,7 +335,7 @@ func (p *Processor) makeSentence(name string) {
 	}
 
 	for _, var_tag := range try_list {
-		if str, err := p.Nmea.WriteSentencePrefixVar(manCode, sentence_name, var_tag); err == nil {
+		if str, err := p.NmeaHandle.Nmea.WriteSentencePrefixVar(manCode, sentence_name, var_tag); err == nil {
 			for _, v := range pn.outputs {
 				((*p.channels)[v]) <- str
 			}
@@ -326,7 +345,9 @@ func (p *Processor) makeSentence(name string) {
 }
 
 func (p *Processor) fileLogger(name string) {
-	data_map := p.Nmea.GetMap()
+	p.NmeaHandle.Nmea_mu.Lock()
+    defer p.NmeaHandle.Nmea_mu.Unlock()
+	data_map := p.NmeaHandle.Nmea.GetMap()
 
 	if len(p.add_now_var) > 0 { 
 		now := time.Now().UTC();  
@@ -348,42 +369,54 @@ func (p *Processor) fileLogger(name string) {
 				p.writer = bufio.NewWriter(f)
 				p.file_closed = false
 			} else {
-				(p.monitor_channel) <- fmt.Sprintf("Log %s Error on file open: ", name)
+				*(p.monitor_channel) <- fmt.Sprintf("Log %s Error on file open: ", name)
 				time.Sleep(time.Minute)
 				p.file_closed = true
 			}
 		} else {
-			(p.monitor_channel) <- fmt.Sprintf("Log %s waiting for datetime : ", name)
+			*(p.monitor_channel) <- fmt.Sprintf("Log %s waiting for datetime : ", name)
 		}
 
 	} else {
 		data_json, _ := json.Marshal(data_map)
-
 		rec_str := fmt.Sprintf("%s\n", string(data_json))
-		//fmt.Println(rec_str)
+
 		if _, err := p.writer.WriteString(rec_str); err != nil {
-			(p.monitor_channel) <- fmt.Sprintf("Log %s Error on write: ", name)
+			*(p.monitor_channel) <- fmt.Sprintf("Log %s Error on write: ", name)
 			p.writer.Flush()
+		} else {
+			if slices.Contains(p.monitor_report, "data_log"){
+				*(p.monitor_channel) <- fmt.Sprintf("Data Logged: %s", rec_str)
+			}
+	
 		}
 	}
 
 }
 
-func parse(str string, handle *nmea0183.Handle, monitor_channel chan string) error {
+func (p *Processor) GetNmeaHandle() *NmeaHandle {
+	return p.NmeaHandle
+}
+
+func parse(str string, handle *NmeaHandle, monitor_channel *chan string, report bool) error {
 	tag := ""
 
 	defer func() {
 		if r := recover(); r != nil {
 			str = ""
-			monitor_channel <- "** Recover from NMEA Panic **"
+			*monitor_channel <- "** Recover from NMEA Panic **"
 		}
 	}()
 
 	tag, str = trim_tag(str)
 
 	if len(str) > 5 && len(str) < 89 && str[0] == '$' {
-		fmt.Println(tag, "-",str)
-		_, _, error := handle.ParsePrefixVar(str, tag)
+		if report {
+			*monitor_channel <- fmt.Sprintf("Parsing: %s from tag %s", str, tag)
+		}
+		handle.Nmea_mu.Lock()
+    	defer handle.Nmea_mu.Unlock()
+		_, _, error := handle.Nmea.ParsePrefixVar(str, tag)
 		return error
 	}
 	//ignore sentences starting with "!"
