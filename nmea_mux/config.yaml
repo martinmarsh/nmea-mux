@@ -1,0 +1,44 @@
+# This is a test config see example_config.yaml for a real world example
+  
+monitor:
+    type: monitor
+    print: on       # turns standard output on or off
+    udp: off         # turns udp reporting on or off
+    server_address: 192.168.1.166:8014   # address and post 255.255.255.255 for broadcast
+    report:
+        - parse      # reports each sentence parsed to data
+        - data_log   # reports each log data write
+        - device     # allow reports from each device which has report set
+compass:
+    name: /dev/ttyUSB0
+    type: serial
+    origin_tag: cp_
+    report: on
+    outputs:
+      - to_processor
+
+
+
+
+udp_compass_listen:
+    type:  udp_listen
+    origin_tag: esp_
+    outputs:
+        - to_processor
+    port: 8005
+
+main_processor:
+    type: nmea_processor # Links to any make_sentence types with processor field referring to this processor
+    input: to_processor  # NMEA data received will be stored to data base and tagged with origin prefix
+                         # if applied by the origin channel
+    log_period: 15    # zero means no log saved
+    data_retain: 15   # number of seconds before old records are removed
+    add_now_var: utc_datetime
+    datetime_tags:
+        - ray_
+        - gm_
+        - utc_
+
+
+
+      

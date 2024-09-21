@@ -25,8 +25,11 @@ type SerialDevice struct {
 }
 
 func (s *SerialDevice) SetMode(baud int, port string) error {
+	s.baud = baud
 	s.mode = &serial.Mode{
 		BaudRate: s.baud,
+		StopBits: serial.OneStopBit,
+		Parity: serial.NoParity,
 	}
 	s.portName = port
 	return nil
