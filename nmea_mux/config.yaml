@@ -1,44 +1,26 @@
 # This is a test config see example_config.yaml for a real world example
-
+  
 monitor:
     type: monitor
-    server_address: 192.168.1.166:8014
-
-
-bridge:
-    name: /dev/ttyUSB1
-    type: serial
-    origin_tag: ray_
-    baud: 38400
-    input: to_2000
-    outputs:
-      - to_processor
-      - to_udp_opencpn
-
-ais:
-    name: /dev/ttyUSB3
-    type: serial
-    baud: 38400
-    outputs:
-      - to_2000
-      - to_udp_opencpn
-
+    print: on       # turns standard output on or off
+    udp: off         # turns udp reporting on or off
+    server_address: 192.168.1.166:8014   # address and post 255.255.255.255 for broadcast
+    report:
+        - parse      # reports each sentence parsed to data
+        - data_log   # reports each log data write
+        - device     # allow reports from each device which has report set
 compass:
     name: /dev/ttyUSB0
     type: serial
     origin_tag: cp_
+    report: on
     outputs:
       - to_processor
-      - to_udp_opencpn
-      - to_2000
 
-udp_opencpn:
-    type:  udp_client
-    input: to_udp_opencpn
-    server_address: 127.0.0.1:8011
 
 udp_compass_listen:
     type:  udp_listen
+    baud: 9600
     origin_tag: esp_
     outputs:
         - to_processor
