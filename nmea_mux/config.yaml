@@ -18,9 +18,10 @@ compass:
       - to_processor
 
 
+
+
 udp_compass_listen:
     type:  udp_listen
-    baud: 9600
     origin_tag: esp_
     outputs:
         - to_processor
