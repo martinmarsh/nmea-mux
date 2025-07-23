@@ -68,7 +68,11 @@ func (n *NmeaMux) udpListener(name string, server io.UdpServer_interfacer, serve
 			}
 			if len(str) > 0 {
 				for _, out := range outputs {
-					(n.Channels)[out] <- tag + str
+					select {
+    				case (n.Channels)[out] <- tag + str:
+    				default:
+						fmt.Println("In UDP listen", name, "message '", tag, str, "' could not be put on", out, "channel - may be full")
+					}
 				}
 			}
 		}

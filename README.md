@@ -119,6 +119,17 @@ Github.com/martinmarsh/go_boat is a real world example of use.
         defer handle.Nmea_mu.Unlock()
         // can now safely access data returned from GetMap and other handle functions
         fmt.Printf("My data processing started %s \n", handle.nmea.GetMap())
+        // but in a function which uses locks avoid calling other handler processing functions which
+        // also use same lock as this will cause a deadlock.  
+        // Better and safer to use:
+        data = mux.Processors["main_processor"].GetData("")
+        //returns a snapshot copy of all data (or set optional filter to select by tag/start of name)
+        //and does not need a lock
+        //also can use without a lock:
+        mux.Processors["main_processor"].PutData(data)
+        //this adds new values and updates any existing ones in terms of both values and expiry time
+        //Any value not updated will expire and if outdated will be deleted
+
         // see https://github.com/martinmarsh/nmea0183 on how you might use
         // this handle to process NMEA data received
         // Also mux allows you to get parsed config data and channels and to

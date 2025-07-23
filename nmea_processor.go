@@ -26,6 +26,8 @@ type ProcessInterfacer interface {
 	fileLogger(string)
 	makeSentence(name string)
 	GetNmeaHandle() *NmeaHandle
+	GetData(tag string) map[string]string
+	PutData(data map[string]string)
 }
 
 type compare struct {
@@ -62,6 +64,7 @@ type Processor struct {
 	monitor_channel *chan string
 	monitor_report  []string
 }
+
 
 func (n *NmeaMux) nmeaProcessorProcess(name string) error {
 	var Sentences nmea0183.Sentences
@@ -177,8 +180,30 @@ func (n *NmeaMux) nmeaProcessorConfig(name string, process *Processor, Sentences
 	go process.runner(name) //allows mock testing by injection of process_device dependency
 	(n.Monitor_channel) <- fmt.Sprintf("Processor %s started", name)
 
-	return nil
+	return nil;
 }
+
+func (p *Processor) GetData(tag string) map[string]string {
+	p.NmeaHandle.Nmea_mu.Lock()
+    defer p.NmeaHandle.Nmea_mu.Unlock()
+	data := p.NmeaHandle.Nmea.GetMap()
+	copy := make(map[string]string)
+	lent := len(tag)
+	for i,v := range(data){
+		if lent < 1 || (len(i)>=lent && tag == i[:lent]){
+			copy[i] = v
+		}
+	}
+	return copy
+}
+
+
+func (p *Processor) PutData(data map[string]string) {
+	p.NmeaHandle.Nmea_mu.Lock()
+    defer p.NmeaHandle.Nmea_mu.Unlock()
+	p.NmeaHandle.Nmea.Update(data)
+}
+
 
 func (p *Processor) parse_make_sentence(m_config map[string][]string, make_name string) string {
 	def := sentence_def{
@@ -281,7 +306,7 @@ func (p *Processor) runner(name string) {
 		countdowns[m_name] = every
 	}
 	*(p.monitor_channel) <- fmt.Sprintf("Runner %s started- log %ds", name, p.log_period)
-
+	sleep_for := 10 * time.Millisecond
 	for {
 		select {
 		case str := <-(*p.channels)[p.input]:
@@ -292,8 +317,10 @@ func (p *Processor) runner(name string) {
 			if err := parse(str, p.NmeaHandle, p.monitor_channel, report); err != nil {
 				*(p.monitor_channel) <- fmt.Sprintf("Nmea parsing error %s", err)
 			}
+			sleep_for = 0
 		case <-log_ticker.C:
 			p.fileLogger(name)
+			sleep_for =  0
 		case <-sentence_ticker.C:
 			for m_name, every := range p.every {
 				countdowns[m_name] -= 100
@@ -302,6 +329,10 @@ func (p *Processor) runner(name string) {
 					p.makeSentence(m_name)
 				}
 			}
+			sleep_for = 0
+		default:
+			time.Sleep(sleep_for)
+			sleep_for =  50 * time.Millisecond
 		}
 	}
 }
@@ -337,7 +368,11 @@ func (p *Processor) makeSentence(name string) {
 	for _, var_tag := range try_list {
 		if str, err := p.NmeaHandle.Nmea.WriteSentencePrefixVar(manCode, sentence_name, var_tag); err == nil {
 			for _, v := range pn.outputs {
-				((*p.channels)[v]) <- str
+				select {
+    				case ((*p.channels)[v]) <- str:
+    				default:
+						fmt.Println("In Make Sentence", name, "message '", str, "' could not be put on", v , "channel - may be full")
+				}
 			}
 			break
 		}

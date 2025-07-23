@@ -119,7 +119,11 @@ func serialReader(name string, ser io.Serial_interfacer, outputs []string, tag s
 				*(monitor_channel) <- fmt.Sprintf("Serial  %s Rx:  %s", name, str)
 			}
 			for _, out := range outputs {
-				(*channels)[out] <- str
+				select {
+    				case (*channels)[out] <- str:
+    				default:
+						fmt.Println("In serial", name, "message '", str, "'could not be put on", out, "channel - may be full")
+				}
 			}
 
 		}
